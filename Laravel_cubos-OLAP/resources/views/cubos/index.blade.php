@@ -93,17 +93,22 @@ function cargarMiembros(jerarquia) {
 
 function filtrarMiembros() {
     const texto = document.getElementById('buscador').value.toLowerCase().trim();
+
     miembrosFiltrados = miembrosGlobal.filter(m =>
         m.nombre && m.nombre.toLowerCase().includes(texto)
     );
     paginaActual = 1;
     renderizarTabla();
 
+    // Coincidencia exacta o por inicio de nombre
     if (texto !== '') {
-        const exactMatch = miembrosFiltrados.find(m => m.nombre.toLowerCase() === texto);
-        if (exactMatch) {
+        const match = miembrosFiltrados.find(m =>
+            m.nombre.toLowerCase() === texto || m.nombre.toLowerCase().startsWith(texto)
+        );
+
+        if (match) {
             setTimeout(() => {
-                const fila = document.querySelector(`tr[data-nombre="${exactMatch.nombre}"]`);
+                const fila = document.querySelector(`tr[data-nombre="${match.nombre}"]`);
                 if (fila) {
                     fila.classList.add('table-success');
                     fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -112,6 +117,7 @@ function filtrarMiembros() {
         }
     }
 }
+
 
 function limpiarBuscador() {
     document.getElementById('buscador').value = '';
