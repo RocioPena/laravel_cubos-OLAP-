@@ -192,18 +192,63 @@ def inspeccionar_columnas_miembros(catalogo: str, cubo: str):
 
 
 
-@app.get("/miembros_jerarquia")
+# @app.get("/miembros_jerarquia")
+# def miembros_jerarquia(
+#     catalogo: str,
+#     cubo: str,
+#     jerarquia: str
+# ):
+#     try:
+#         mdx = f"""
+#         SELECT 
+#             {{ [Measures].DefaultMember }} ON COLUMNS,
+#             {{ [{jerarquia}].MEMBERS }} ON ROWS
+#         FROM [{cubo}]
+#         """
+
+#         cadena_conexion = (
+#             "Provider=MSOLAP.8;"
+#             "Data Source=pwidgis03.salud.gob.mx;"
+#             "User ID=SALUD\\DGIS15;"
+#             "Password=Temp123!;"
+#             f"Initial Catalog={catalogo};"
+#         )
+
+#         df = query_olap(cadena_conexion, mdx)
+#         df = df.rename(columns=lambda x: x.strip())
+
+#         miembros = []
+#         for _, row in df.iterrows():
+#             miembros.append({
+#                 "nombre": row[0]  # En muchos casos el nombre del miembro
+#             })
+
+#         return {"jerarquia": jerarquia, "miembros": miembros}
+
+#     except Exception as e:
+#         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/miembros_jerarquia2")
 def miembros_jerarquia(
     catalogo: str,
     cubo: str,
     jerarquia: str
 ):
     try:
+        # Si el cubo tiene espacio, lo envolvemos en comillas dobles
+        cubo_mdx = f'"{cubo}"' if " " in cubo else f"[{cubo}]"
+
+        # Si la jerarquía no incluye el nombre completo, lo armamos como [CLUES].[CLUES]
+        if "." not in jerarquia:
+            jerarquia_completa = f"[{jerarquia}].[{jerarquia}]"
+        else:
+            jerarquia_completa = f"[{jerarquia}]"
+
         mdx = f"""
         SELECT 
             {{ [Measures].DefaultMember }} ON COLUMNS,
-            {{ [{jerarquia}].MEMBERS }} ON ROWS
-        FROM [{cubo}]
+            {{ {jerarquia_completa}.MEMBERS }} ON ROWS
+        FROM {cubo_mdx}
         """
 
         cadena_conexion = (
@@ -217,17 +262,11 @@ def miembros_jerarquia(
         df = query_olap(cadena_conexion, mdx)
         df = df.rename(columns=lambda x: x.strip())
 
-        miembros = []
-        for _, row in df.iterrows():
-            miembros.append({
-                "nombre": row[0]  # En muchos casos el nombre del miembro
-            })
-
-        return {"jerarquia": jerarquia, "miembros": miembros}
+        miembros = [{"nombre": row[0]} for _, row in df.iterrows()]
+        return {"jerarquia": jerarquia_completa, "miembros": miembros}
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-
 
 
 
