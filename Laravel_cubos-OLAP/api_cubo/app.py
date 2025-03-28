@@ -8,8 +8,19 @@ import math
 from typing import List
 from fastapi import Query
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Puedes restringir esto a tu dominio
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # === Función auxiliar para crear una conexión ===

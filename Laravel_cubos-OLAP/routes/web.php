@@ -1,7 +1,6 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\CubosController;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/cubos', [CubosController::class, 'index'])->name('cubos.index');
+
