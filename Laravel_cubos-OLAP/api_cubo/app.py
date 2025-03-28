@@ -190,44 +190,6 @@ def inspeccionar_columnas_miembros(catalogo: str, cubo: str):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-
-
-# @app.get("/miembros_jerarquia")
-# def miembros_jerarquia(
-#     catalogo: str,
-#     cubo: str,
-#     jerarquia: str
-# ):
-#     try:
-#         mdx = f"""
-#         SELECT 
-#             {{ [Measures].DefaultMember }} ON COLUMNS,
-#             {{ [{jerarquia}].MEMBERS }} ON ROWS
-#         FROM [{cubo}]
-#         """
-
-#         cadena_conexion = (
-#             "Provider=MSOLAP.8;"
-#             "Data Source=pwidgis03.salud.gob.mx;"
-#             "User ID=SALUD\\DGIS15;"
-#             "Password=Temp123!;"
-#             f"Initial Catalog={catalogo};"
-#         )
-
-#         df = query_olap(cadena_conexion, mdx)
-#         df = df.rename(columns=lambda x: x.strip())
-
-#         miembros = []
-#         for _, row in df.iterrows():
-#             miembros.append({
-#                 "nombre": row[0]  # En muchos casos el nombre del miembro
-#             })
-
-#         return {"jerarquia": jerarquia, "miembros": miembros}
-
-#     except Exception as e:
-#         return JSONResponse(status_code=500, content={"error": str(e)})
-
 @app.get("/miembros_jerarquia2")
 def miembros_jerarquia(
     catalogo: str,
@@ -264,49 +226,6 @@ def miembros_jerarquia(
 
         miembros = [{"nombre": row[0]} for _, row in df.iterrows()]
         return {"jerarquia": jerarquia_completa, "miembros": miembros}
-
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-
-@app.get("/variables_por_clues")
-def variables_por_clues(
-    catalogo: str,
-    cubo: str,
-    clues: List[str] = Query(...)
-):
-    try:
-        # Armamos el WHERE con múltiples CLUES
-        clues_mdx = ", ".join(f"[DIM UNIDAD].[Clues].[{clue}]" for clue in clues)
-
-        mdx = f"""
-        SELECT 
-            [DIM VARIABLES].[Variable].MEMBERS ON ROWS,
-            {{}} ON COLUMNS
-        FROM [{cubo}]
-        WHERE ({{ {clues_mdx} }})
-        """
-
-        cadena_conexion = (
-            "Provider=MSOLAP.8;"
-            "Data Source=pwidgis03.salud.gob.mx;"
-            "User ID=SALUD\\DGIS15;"
-            "Password=Temp123!;"
-            f"Initial Catalog={catalogo};"
-        )
-
-        df = query_olap(cadena_conexion, mdx)
-        df = df.rename(columns=lambda x: x.strip())
-
-        resultados = [{"variable": row[0]} for _, row in df.iterrows()]
-
-        return {
-            "catalogo": catalogo,
-            "cubo": cubo,
-            "clues": clues,
-            "variables": resultados
-        }
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
