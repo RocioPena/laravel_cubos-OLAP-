@@ -240,3 +240,37 @@ def miembros_jerarquia(
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+@app.get("/variables_por_clues")
+def variables_por_clues(
+    catalogo: str,
+    cubo: str,
+    clues: str
+):
+    try:
+        mdx = f"""
+        SELECT 
+            [Variable].[Variable].MEMBERS ON ROWS,
+            {{ [Measures].DefaultMember }} ON COLUMNS
+        FROM [{cubo}]
+        WHERE ([CLUES].[CLUES].&[{clues}])
+        """
+
+        cadena_conexion = (
+            "Provider=MSOLAP.8;"
+            "Data Source=pwidgis03.salud.gob.mx;"
+            "User ID=SALUD\\DGIS15;"
+            "Password=Temp123!;"
+            f"Initial Catalog={catalogo};"
+        )
+
+        df = query_olap(cadena_conexion, mdx)
+        df = df.rename(columns=lambda x: x.strip())
+
+        variables = [{"nombre": row[0]} for _, row in df.iterrows()]
+        return {
+            "clues": clues,
+            "variables": variables
+        }
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
