@@ -7,7 +7,6 @@ import pandas as pd
 import math
 from typing import List
 from fastapi import Query
-
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -240,6 +239,7 @@ def miembros_jerarquia(
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.get("/variables_por_clues")
 def variables_por_clues(
     catalogo: str,
@@ -274,3 +274,6 @@ def variables_por_clues(
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+
