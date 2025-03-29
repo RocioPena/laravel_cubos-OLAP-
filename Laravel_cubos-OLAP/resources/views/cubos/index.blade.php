@@ -35,6 +35,13 @@
             <ul class="pagination justify-content-center" id="paginacion"></ul>
         </nav>
     </div>
+    <div id="spinnerCarga" class="text-center my-4 d-none">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-2">Cargando información...</p>
+    </div>
+    
 </div>
 @endsection
 
@@ -64,6 +71,8 @@ function cargarMiembros(jerarquia) {
     const catalogo = document.getElementById('cuboSelect').value;
     if (!catalogo) return alert('Selecciona un catálogo SIS');
 
+    mostrarSpinner();
+
     fetch(`${baseUrl}/cubos_en_catalogo/${catalogo}`)
         .then(res => res.json())
         .then(data => {
@@ -87,6 +96,9 @@ function cargarMiembros(jerarquia) {
                 .catch(err => {
                     console.error("❌ Error al cargar miembros:", err);
                     alert("Error al cargar datos. Ver consola.");
+                })
+                .finally(() => {
+                    ocultarSpinner();
                 });
         });
 }
@@ -179,5 +191,14 @@ function cambiarPagina(pagina) {
     paginaActual = pagina;
     renderizarTabla();
 }
+
+function mostrarSpinner() {
+    document.getElementById('spinnerCarga').classList.remove('d-none');
+}
+
+function ocultarSpinner() {
+    document.getElementById('spinnerCarga').classList.add('d-none');
+}
+
 </script>
 @endsection
