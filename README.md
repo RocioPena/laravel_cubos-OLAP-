@@ -20,4 +20,6 @@ php artisan serve
 
 http://127.0.0.1:8000/cubos
 
+http://127.0.0.1:8000/consulta-variables
+
 
