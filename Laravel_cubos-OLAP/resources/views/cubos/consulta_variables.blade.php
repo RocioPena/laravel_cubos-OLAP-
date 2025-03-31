@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<!-- Select2 CSS -->
+
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
 <div class="container mt-4">
@@ -39,18 +39,18 @@
     </div>
 </div>
 
-<!-- jQuery (requerido por Select2) -->
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-<!-- Select2 CSS -->
+
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<!-- Select2 JS -->
+
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 @endsection
 
 @section('scripts')
-<!-- Select2 JS -->
+
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 
@@ -99,15 +99,16 @@ function cargarVariables(catalogo, cubo) {
             const select = $('#variablesSelect');
             select.empty();
             
-            // Verificamos que existan miembros y sea un array
+           
             if (Array.isArray(data?.miembros)) {
                 data.miembros.forEach(v => {
-                    // Extraemos solo el nombre final si viene en formato [dimension].[nombre]
+                
                     const nombreLimpio = v.nombre.replace(/^.*\.\[?(.*?)\]?$/, '$1');
                     select.append(new Option(nombreLimpio, nombreLimpio));
                 });
                 
-                // Habilitar el select2 después de cargar opciones
+
+                
                 select.trigger('change');
             } else {
                 console.warn('No se recibieron variables válidas', data);
@@ -159,7 +160,8 @@ async function consultarVariables() {
             throw new Error(data.error || `Error HTTP ${response.status}`);
         }
         
-        // Mostrar resultados en la tabla
+      
+        
         const tbody = document.getElementById('tablaResultados');
         tbody.innerHTML = '';
         

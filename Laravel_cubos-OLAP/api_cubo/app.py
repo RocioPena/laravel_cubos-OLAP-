@@ -16,14 +16,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Puedes restringir esto a tu dominio
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# === Función auxiliar para crear una conexión ===
 def crear_conexion(catalogo: str = None):
     pythoncom.CoInitialize()
     conn = win32com.client.Dispatch("ADODB.Connection")
@@ -44,7 +43,7 @@ def crear_conexion(catalogo: str = None):
     return conn
 
 
-# === Función auxiliar para ejecutar query y devolver lista ===
+
 def ejecutar_query_lista(conn, query, campo):
     rs = win32com.client.Dispatch("ADODB.Recordset")
     rs.Open(query, conn)
@@ -87,7 +86,6 @@ def sanitize_result(data):
     return data
 
 
-# === Endpoint: cubos disponibles ===
 @app.get("/cubos_disponibles")
 def cubos_disponibles():
     try:
@@ -99,7 +97,7 @@ def cubos_disponibles():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# === Endpoint: cubos en catálogo específico ===
+
 @app.get("/cubos_en_catalogo/{catalogo}")
 def cubos_en_catalogo(catalogo: str):
     try:
@@ -111,7 +109,7 @@ def cubos_en_catalogo(catalogo: str):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# === Endpoint: explorar catálogo con detalles ===
+
 @app.get("/explorar_catalogo/{catalogo}")
 def explorar_catalogo(catalogo: str):
     try:
@@ -142,7 +140,7 @@ def cubos_sis():
         conn.Close()
         pythoncom.CoUninitialize()
 
-        # Filtrar los que contienen 'sis' PERO excluir 'sis_sectorial'
+   
         cubos_filtrados = [c for c in cubos if 'sis' in c.lower() and 'sectorial' not in c.lower()]
         return {"cubos_sis": cubos_filtrados}
 
@@ -156,7 +154,7 @@ def explorar_sis():
         catalogos = ejecutar_query_lista(conn, "SELECT [catalog_name] FROM $system.DBSCHEMA_CATALOGS", "CATALOG_NAME")
         conn.Close()
 
-        # Filtrar los que contienen 'sis' PERO excluir 'sis_sectorial'
+       
         catalogos_sis = [c for c in catalogos if "sis" in c.lower() and "sectorial" not in c.lower()]
         resultado = []
 
@@ -211,10 +209,10 @@ def miembros_jerarquia(
     jerarquia: str
 ):
     try:
-        # Si el cubo tiene espacio, lo envolvemos en comillas dobles
+     
         cubo_mdx = f'"{cubo}"' if " " in cubo else f"[{cubo}]"
 
-        # Si la jerarquía no incluye el nombre completo, lo armamos como [CLUES].[CLUES]
+      
         if "." not in jerarquia:
             jerarquia_completa = f"[{jerarquia}].[{jerarquia}]"
         else:
@@ -291,7 +289,7 @@ def variables_por_clues_multiple(
     try:
         print(f"Recibido: catalogo={catalogo}, cubo={cubo}, clues={clues}, variables={variables}")
         
-        # Define connection string
+       
         cadena_conexion = (
             "Provider=MSOLAP.8;"
             "Data Source=pwidgis03.salud.gob.mx;"
@@ -300,7 +298,6 @@ def variables_por_clues_multiple(
             f"Initial Catalog={catalogo};"
         )
 
-        # Try a simplified query first to check if the CLUES exists
         mdx_check = f"""
         SELECT 
         {{[Measures].DefaultMember}} ON COLUMNS
@@ -309,18 +306,18 @@ def variables_por_clues_multiple(
         """
         
         try:
-            # Test if CLUES exists
+          
             check_df = query_olap(cadena_conexion, mdx_check)
             print("CLUES check result:", check_df.to_dict())
         except Exception as e:
             print(f"CLUES check error: {str(e)}")
-            # If there's an error, the CLUES might be invalid
+          
             return JSONResponse(
                 status_code=400, 
                 content={"error": f"La CLUES '{clues}' no existe o no es válida."}
             )
 
-        # Modified MDX query to better handle variable references
+    
         mdx = f"""
         SELECT 
         {{[Measures].DefaultMember}} ON COLUMNS,
@@ -334,16 +331,16 @@ def variables_por_clues_multiple(
         df = query_olap(cadena_conexion, mdx)
         print("Datos crudos:", df.to_dict())
         
-        # Check if we got any data
+       
         if df.empty:
             print("DataFrame está vacío - no hay resultados")
             return {"clues": clues, "resultados": [], "message": "No se encontraron datos para esta consulta"}
         
         resultados = []
         for _, row in df.iterrows():
-            # Try to extract variable name from full path
+          
             nombre_variable = row[0]
-            # Remove hierarchy prefix if present
+    
             if '.[' in nombre_variable:
                 nombre_variable = nombre_variable.split('.[')[-1].rstrip(']')
             
