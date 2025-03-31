@@ -43,6 +43,7 @@ def crear_conexion(catalogo: str = None):
     conn.Open(cadena)
     return conn
 
+
 # === Función auxiliar para ejecutar query y devolver lista ===
 def ejecutar_query_lista(conn, query, campo):
     rs = win32com.client.Dispatch("ADODB.Recordset")
@@ -53,6 +54,8 @@ def ejecutar_query_lista(conn, query, campo):
         rs.MoveNext()
     rs.Close()
     return resultados
+
+
 
 def query_olap(connection_string: str, query: str) -> pd.DataFrame:
     pythoncom.CoInitialize()
@@ -278,3 +281,82 @@ def variables_por_clues(
 
 
 
+@app.post("/variables_por_clues_multiple")
+def variables_por_clues_multiple(
+    catalogo: str = Body(...),
+    cubo: str = Body(...),
+    clues: str = Body(...),
+    variables: List[str] = Body(...)
+):
+    try:
+        print(f"Recibido: catalogo={catalogo}, cubo={cubo}, clues={clues}, variables={variables}")
+        
+        # Define connection string
+        cadena_conexion = (
+            "Provider=MSOLAP.8;"
+            "Data Source=pwidgis03.salud.gob.mx;"
+            "User ID=SALUD\\DGIS15;"
+            "Password=Temp123!;"
+            f"Initial Catalog={catalogo};"
+        )
+
+        # Try a simplified query first to check if the CLUES exists
+        mdx_check = f"""
+        SELECT 
+        {{[Measures].DefaultMember}} ON COLUMNS
+        FROM [{cubo}]
+        WHERE ([CLUES].[CLUES].&[{clues}])
+        """
+        
+        try:
+            # Test if CLUES exists
+            check_df = query_olap(cadena_conexion, mdx_check)
+            print("CLUES check result:", check_df.to_dict())
+        except Exception as e:
+            print(f"CLUES check error: {str(e)}")
+            # If there's an error, the CLUES might be invalid
+            return JSONResponse(
+                status_code=400, 
+                content={"error": f"La CLUES '{clues}' no existe o no es válida."}
+            )
+
+        # Modified MDX query to better handle variable references
+        mdx = f"""
+        SELECT 
+        {{[Measures].DefaultMember}} ON COLUMNS,
+        {{ {", ".join(f"[Variable].[Variable].[{v}]" for v in variables)} }} ON ROWS
+        FROM [{cubo}]
+        WHERE ([CLUES].[CLUES].[{clues}])
+        """
+        
+        print("MDX generado:", mdx)
+        
+        df = query_olap(cadena_conexion, mdx)
+        print("Datos crudos:", df.to_dict())
+        
+        # Check if we got any data
+        if df.empty:
+            print("DataFrame está vacío - no hay resultados")
+            return {"clues": clues, "resultados": [], "message": "No se encontraron datos para esta consulta"}
+        
+        resultados = []
+        for _, row in df.iterrows():
+            # Try to extract variable name from full path
+            nombre_variable = row[0]
+            # Remove hierarchy prefix if present
+            if '.[' in nombre_variable:
+                nombre_variable = nombre_variable.split('.[')[-1].rstrip(']')
+            
+            resultados.append({
+                "variable": nombre_variable,
+                "valor": sanitize_result(row[1]) if len(row) > 1 else None
+            })
+        
+        print("Resultados procesados:", resultados)
+        return {"clues": clues, "resultados": resultados}
+
+    except Exception as e:
+        print("Error en API:", str(e))
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})

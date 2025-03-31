@@ -10,4 +10,12 @@ class CubosController extends Controller
     {
         return view('cubos.index');
     }
+
+    public function consultaVariables()
+{
+    return view('cubos.consulta_variables');
 }
+
+}
+
+
