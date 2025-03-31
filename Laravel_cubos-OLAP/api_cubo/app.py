@@ -138,17 +138,17 @@ def explorar_catalogo(catalogo: str):
 def cubos_sis():
     try:
         conn = crear_conexion()
-        # Obtenemos todos los catálogos
         cubos = ejecutar_query_lista(conn, "SELECT [catalog_name] FROM $system.DBSCHEMA_CATALOGS", "CATALOG_NAME")
         conn.Close()
         pythoncom.CoUninitialize()
 
-        # Filtramos los que contienen 'sis' (insensible a mayúsculas)
-        cubos_filtrados = [cubo for cubo in cubos if 'sis' in cubo.lower()]
+        # Filtrar los que contienen 'sis' PERO excluir 'sis_sectorial'
+        cubos_filtrados = [c for c in cubos if 'sis' in c.lower() and 'sectorial' not in c.lower()]
         return {"cubos_sis": cubos_filtrados}
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.get("/explorar_sis")
 def explorar_sis():
     try:
@@ -156,8 +156,8 @@ def explorar_sis():
         catalogos = ejecutar_query_lista(conn, "SELECT [catalog_name] FROM $system.DBSCHEMA_CATALOGS", "CATALOG_NAME")
         conn.Close()
 
-        # Filtrar solo los que contienen 'sis'
-        catalogos_sis = [c for c in catalogos if "sis" in c.lower()]
+        # Filtrar los que contienen 'sis' PERO excluir 'sis_sectorial'
+        catalogos_sis = [c for c in catalogos if "sis" in c.lower() and "sectorial" not in c.lower()]
         resultado = []
 
         for catalogo in catalogos_sis:
