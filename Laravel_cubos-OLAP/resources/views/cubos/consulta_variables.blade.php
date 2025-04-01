@@ -93,7 +93,7 @@ function cargarVariables() {
     const catalogo = document.getElementById('catalogoSelect').value;
     const clues = document.getElementById('cluesInput').value.trim();
 
-    document.getElementById('mensajeCargadas').classList.add('d-none'); // ocultar mensaje anterior
+    document.getElementById('mensajeCargadas').classList.add('d-none');
 
     if (!catalogo || !cuboActivo || !clues) {
         alert("Selecciona un catálogo y escribe una CLUES.");
@@ -120,7 +120,7 @@ function cargarVariables() {
                 select.prop('disabled', false);
                 select.trigger('change');
 
-                // ✅ Mostrar mensaje de éxito
+               
                 document.getElementById('mensajeCargadas').classList.remove('d-none');
             } else {
                 alert("No se encontraron variables con datos para esta CLUES.");
