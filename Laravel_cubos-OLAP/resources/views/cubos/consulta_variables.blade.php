@@ -5,7 +5,7 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
 <div class="container mt-4">
-    <h3 class="mb-4">Consulta por CLUES y Variables</h3>
+    <h3 class="mb-4">Consulta por CLUES y Variables (solo las disponibles en la CLUES)</h3>
 
     <div class="mb-3">
         <label for="catalogoSelect" class="form-label">Selecciona un catálogo SIS:</label>
@@ -15,16 +15,21 @@
     </div>
 
     <div class="mb-3">
-        <label for="cluesInput" class="form-label">CLUES (separar múltiples CLUES con comas):</label>
-        <input type="text" id="cluesInput" class="form-control" placeholder="Ej. MCL210000000, MCL210000001">
+        <label for="cluesInput" class="form-label">CLUES (una sola CLUES para cargar variables específicas):</label>
+        <input type="text" id="cluesInput" class="form-control" placeholder="Ej. MCL210000000">
     </div>
 
     <div class="mb-3">
-        <label for="variablesSelect" class="form-label">Selecciona Variables (opcional, vacío para todas):</label>
-        <select id="variablesSelect" class="form-select" multiple></select>
+        <button class="btn btn-secondary" onclick="cargarVariables()">🔍 Cargar Variables por CLUES</button>
     </div>
 
-    <button class="btn btn-primary mb-4" onclick="consultarVariables()">Consultar</button>
+    <div class="mb-3">
+        <label for="variablesSelect" class="form-label">Selecciona Variables (opcional):</label>
+        <select id="variablesSelect" class="form-select" multiple disabled></select>
+    </div>
+
+    <button class="btn btn-primary mb-2" onclick="consultarVariables()">Consultar</button>
+    <button class="btn btn-success mb-2 ms-2" onclick="exportarExcel()">⬇️ Exportar a Excel</button>
 
     <div id="spinnerCarga" class="text-center my-4 d-none">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -39,6 +44,7 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
 @endsection
 
@@ -48,8 +54,8 @@ const baseUrl = 'http://127.0.0.1:8070';
 let cuboActivo = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    $('#variablesSelect').select2({ 
-        placeholder: "Busca variables...", 
+    $('#variablesSelect').select2({
+        placeholder: "Busca variables...",
         width: '100%',
         allowClear: true
     });
@@ -74,38 +80,46 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(res => res.json())
             .then(data => {
                 cuboActivo = data.cubos[0];
-                cargarVariables(catalogo, cuboActivo);
             });
     });
 });
 
-function cargarVariables(catalogo, cubo) {
+function cargarVariables() {
+    const catalogo = document.getElementById('catalogoSelect').value;
+    const clues = document.getElementById('cluesInput').value.trim();
+
+    if (!catalogo || !cuboActivo || !clues) {
+        alert("Selecciona un catálogo y escribe una CLUES.");
+        return;
+    }
+
+    if (clues.includes(',')) {
+        alert("Solo puedes cargar variables con una CLUES a la vez.");
+        return;
+    }
+
     mostrarSpinner();
-    fetch(`${baseUrl}/miembros_jerarquia2?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cubo)}&jerarquia=Variable`)
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`Error HTTP: ${res.status}`);
-            }
-            return res.json();
-        })
+
+    fetch(`${baseUrl}/variables_pacientes_por_clues?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cuboActivo)}&clues=${encodeURIComponent(clues)}`)
+        .then(res => res.json())
         .then(data => {
             const select = $('#variablesSelect');
             select.empty();
-            
-            if (Array.isArray(data?.miembros)) {
-                data.miembros.forEach(v => {
-                    const nombreLimpio = v.nombre.replace(/^.*\.\[?(.*?)\]?$/, '$1');
-                    select.append(new Option(nombreLimpio, nombreLimpio));
+
+            if (data.variables && data.variables.length > 0) {
+                data.variables.forEach(v => {
+                    select.append(new Option(v.variable, v.variable));
                 });
+                select.prop('disabled', false);
                 select.trigger('change');
             } else {
-                console.warn('No se recibieron variables válidas', data);
-                alert('No se encontraron variables disponibles para este cubo');
+                alert("No se encontraron variables con datos para esta CLUES.");
+                select.prop('disabled', true);
             }
         })
         .catch(err => {
-            console.error("Error al cargar variables:", err);
-            alert("Error al cargar variables. Verifica la consola para más detalles.");
+            console.error("Error al cargar variables por CLUES:", err);
+            alert("Ocurrió un error al cargar las variables.");
         })
         .finally(() => ocultarSpinner());
 }
@@ -113,31 +127,27 @@ function cargarVariables(catalogo, cubo) {
 async function consultarVariables() {
     mostrarSpinner();
     document.getElementById('resultadosContainer').classList.add('d-none');
-    
+
     try {
+        const catalogo = document.getElementById('catalogoSelect').value;
         const cluesInput = document.getElementById('cluesInput').value.trim();
-        if (!cluesInput) {
-            throw new Error('Por favor ingresa al menos una CLUES');
+        const cluesList = cluesInput.split(',').map(c => c.trim()).filter(c => c);
+        const variables = $('#variablesSelect').val() || [];
+
+        if (!catalogo || !cuboActivo || cluesList.length === 0) {
+            throw new Error("Por favor completa el catálogo y al menos una CLUES");
         }
 
-        const cluesList = cluesInput.split(',').map(clues => clues.trim()).filter(clues => clues);
-        
         const payload = {
-            catalogo: document.getElementById('catalogoSelect').value,
+            catalogo: catalogo,
             cubo: cuboActivo,
             clues_list: cluesList,
-            variables: $('#variablesSelect').val() || []
+            variables: variables
         };
 
-        if (!payload.catalogo || !payload.cubo) {
-            throw new Error('Por favor selecciona un catálogo');
-        }
-
-        console.log("Enviando payload:", payload);
-        
         const response = await fetch(`${baseUrl}/total_pacientes_multiple`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
@@ -145,20 +155,17 @@ async function consultarVariables() {
         });
 
         const data = await response.json();
-        console.log("Datos recibidos:", data);
-        
+
         if (!response.ok) {
             throw new Error(data.error || `Error HTTP ${response.status}`);
         }
-        
+
         mostrarResultados(data);
-        
+
     } catch (error) {
         console.error("Error completo:", error);
         document.getElementById('resultadosContainer').classList.remove('d-none');
-        document.getElementById('resumenConsulta').innerHTML = `
-            <strong>Error:</strong> ${error.message}
-        `;
+        document.getElementById('resumenConsulta').innerHTML = `<strong>Error:</strong> ${error.message}`;
     } finally {
         ocultarSpinner();
     }
@@ -168,23 +175,21 @@ function mostrarResultados(data) {
     const container = document.getElementById('resultadosContainer');
     const resumen = document.getElementById('resumenConsulta');
     const resultadosDiv = document.getElementById('resultadosPorClues');
-    
-    // Limpiar resultados anteriores
+
     resultadosDiv.innerHTML = '';
-    
-    // Mostrar resumen
+    window.resultadosExport = [];
+
     resumen.innerHTML = `
         <strong>Consulta realizada:</strong> 
-        Catálogo: ${data.catalogo} | 
-        Cubo: ${data.cubo} | 
+        Catálogo: ${data.catalogo} |
+        Cubo: ${data.cubo} |
         CLUES consultadas: ${data.total_clues_consultadas}
     `;
-    
-    // Mostrar resultados por CLUES
+
     data.resultados.forEach(cluesData => {
         const card = document.createElement('div');
         card.className = 'card mb-4';
-        
+
         const cardHeader = document.createElement('div');
         cardHeader.className = `card-header ${cluesData.estado === 'error' ? 'bg-danger text-white' : 'bg-primary text-white'}`;
         cardHeader.innerHTML = `
@@ -195,10 +200,10 @@ function mostrarResultados(data) {
                 </span>
             </h5>
         `;
-        
+
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body';
-        
+
         if (cluesData.estado === 'error') {
             cardBody.innerHTML = `<p class="text-danger">${cluesData.mensaje}</p>`;
         } else if (cluesData.resultados.length === 0) {
@@ -214,23 +219,41 @@ function mostrarResultados(data) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${cluesData.resultados.map(item => `
-                        <tr>
-                            <td>${item.variable || 'N/A'}</td>
-                            <td>${item.total_pacientes !== null ? item.total_pacientes : 'Sin datos'}</td>
-                        </tr>
-                    `).join('')}
+                    ${cluesData.resultados.map(item => {
+                        window.resultadosExport.push({
+                            CLUES: cluesData.clues,
+                            Variable: item.variable,
+                            "Total de Pacientes": item.total_pacientes
+                        });
+                        return `
+                            <tr>
+                                <td>${item.variable || 'N/A'}</td>
+                                <td>${item.total_pacientes !== null ? item.total_pacientes : 'Sin datos'}</td>
+                            </tr>`;
+                    }).join('')}
                 </tbody>
             `;
             cardBody.appendChild(table);
         }
-        
+
         card.appendChild(cardHeader);
         card.appendChild(cardBody);
         resultadosDiv.appendChild(card);
     });
-    
+
     container.classList.remove('d-none');
+}
+
+function exportarExcel() {
+    if (!window.resultadosExport || window.resultadosExport.length === 0) {
+        alert("No hay datos para exportar.");
+        return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(window.resultadosExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Resultados");
+    XLSX.writeFile(workbook, "resultados_clues.xlsx");
 }
 
 function mostrarSpinner() {
