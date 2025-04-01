@@ -28,6 +28,11 @@
         <select id="variablesSelect" class="form-select" multiple disabled></select>
     </div>
 
+    <!-- ✅ Mensaje de variables cargadas -->
+    <div id="mensajeCargadas" class="alert alert-success d-none">
+        ✅ Variables cargadas correctamente. Ya puedes seleccionar las que deseas consultar.
+    </div>
+
     <button class="btn btn-primary mb-2" onclick="consultarVariables()">Consultar</button>
     <button class="btn btn-success mb-2 ms-2" onclick="exportarExcel()">⬇️ Exportar a Excel</button>
 
@@ -88,6 +93,8 @@ function cargarVariables() {
     const catalogo = document.getElementById('catalogoSelect').value;
     const clues = document.getElementById('cluesInput').value.trim();
 
+    document.getElementById('mensajeCargadas').classList.add('d-none'); // ocultar mensaje anterior
+
     if (!catalogo || !cuboActivo || !clues) {
         alert("Selecciona un catálogo y escribe una CLUES.");
         return;
@@ -112,6 +119,9 @@ function cargarVariables() {
                 });
                 select.prop('disabled', false);
                 select.trigger('change');
+
+                // ✅ Mostrar mensaje de éxito
+                document.getElementById('mensajeCargadas').classList.remove('d-none');
             } else {
                 alert("No se encontraron variables con datos para esta CLUES.");
                 select.prop('disabled', true);
