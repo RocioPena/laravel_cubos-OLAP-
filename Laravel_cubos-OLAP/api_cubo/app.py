@@ -359,13 +359,10 @@ def variables_por_clues_multiple(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/variables_pacientes_por_clues")
-def variables_pacientes_por_clues(
-    catalogo: str,
-    cubo: str,
-    clues: str
-):
+def variables_pacientes_por_clues(catalogo: str, cubo: str, clues: str):
     try:
-       
+        cubo_mdx = f'"{cubo}"' if " " in cubo else f"[{cubo}]"
+
         cadena_conexion = (
             "Provider=MSOLAP.8;"
             "Data Source=pwidgis03.salud.gob.mx;"
@@ -373,54 +370,52 @@ def variables_pacientes_por_clues(
             "Password=Temp123!;"
             f"Initial Catalog={catalogo};"
         )
-        
-       
+
         mdx_check = f"""
         SELECT 
         {{[Measures].DefaultMember}} ON COLUMNS
-        FROM [{cubo}]
+        FROM {cubo_mdx}
         WHERE ([CLUES].[CLUES].&[{clues}])
         """
-        
+
         try:
             check_df = query_olap(cadena_conexion, mdx_check)
         except Exception as e:
             return JSONResponse(
-                status_code=400, 
+                status_code=400,
                 content={"error": f"La CLUES '{clues}' no existe o no es válida en el catálogo/cubo especificado."}
             )
-        
-        
+
         mdx = f"""
         SELECT 
         {{[Measures].[Total]}} ON COLUMNS,
         {{[Variable].[Variable].MEMBERS}} ON ROWS
-        FROM [{cubo}]
+        FROM {cubo_mdx}
         WHERE ([CLUES].[CLUES].&[{clues}])
         """
-        
+
         df = query_olap(cadena_conexion, mdx)
-        
-        if df.empty:
-            return {"clues": clues, "variables": [], "message": "No se encontraron datos para esta consulta"}
-        
-    
+
+        if df is None or not hasattr(df, 'empty') or df.empty:
+            return {"clues": clues, "variables": [], "message": "No se encontraron datos o el cubo no respondió correctamente"}
+
         variables = []
         for _, row in df.iterrows():
+            if row[0] is None:
+                continue
+
             nombre_variable = row[0]
-            
-           
+
             if '.[' in nombre_variable:
                 nombre_variable = nombre_variable.split('.[')[-1].rstrip(']')
-            
-            
+
             valor = sanitize_result(row[1]) if len(row) > 1 else None
             if valor is not None and isinstance(valor, (int, float)) and valor > 0:
                 variables.append({
                     "variable": nombre_variable,
                     "total_pacientes": valor
                 })
-        
+
         return {
             "clues": clues,
             "catalogo": catalogo,
@@ -428,11 +423,12 @@ def variables_pacientes_por_clues(
             "total_variables": len(variables),
             "variables": variables
         }
-    
+
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.post("/total_pacientes_multiple")
 def total_pacientes_multiple(
@@ -441,13 +437,14 @@ def total_pacientes_multiple(
     clues_list: List[str] = Body(...),
     variables: List[str] = Body(default=None, description="Lista de variables a consultar (opcional)")
 ):
-    
     if variables is None:
         variables = []
-        
+
     try:
         print(f"Recibido: catalogo={catalogo}, cubo={cubo}, clues_list={clues_list}, variables={variables}")
-        
+
+        cubo_mdx = f'"{cubo}"' if " " in cubo else f"[{cubo}]"
+
         cadena_conexion = (
             "Provider=MSOLAP.8;"
             "Data Source=pwidgis03.salud.gob.mx;"
@@ -457,22 +454,20 @@ def total_pacientes_multiple(
         )
 
         resultados_por_clues = []
-        
+
         for clues in clues_list:
-           
             mdx_check = f"""
             SELECT 
             {{[Measures].DefaultMember}} ON COLUMNS
-            FROM [{cubo}]
+            FROM {cubo_mdx}
             WHERE ([CLUES].[CLUES].&[{clues}])
             """
-            
+
             try:
                 check_df = query_olap(cadena_conexion, mdx_check)
-                print(f"CLUES {clues} check result:", check_df.to_dict())
+                print(f"CLUES {clues} check result:", check_df.to_dict() if check_df is not None else "None")
             except Exception as e:
                 print(f"CLUES {clues} check error: {str(e)}")
-               
                 resultados_por_clues.append({
                     "clues": clues,
                     "estado": "error",
@@ -481,13 +476,12 @@ def total_pacientes_multiple(
                 })
                 continue
 
-           
             if not variables:
                 mdx = f"""
                 SELECT 
                 {{[Measures].[Total]}} ON COLUMNS,
                 {{[Variable].[Variable].MEMBERS}} ON ROWS
-                FROM [{cubo}]
+                FROM {cubo_mdx}
                 WHERE ([CLUES].[CLUES].&[{clues}])
                 """
             else:
@@ -495,17 +489,15 @@ def total_pacientes_multiple(
                 SELECT 
                 {{[Measures].[Total]}} ON COLUMNS,
                 {{ {", ".join(f"[Variable].[Variable].[{v}]" for v in variables)} }} ON ROWS
-                FROM [{cubo}]
+                FROM {cubo_mdx}
                 WHERE ([CLUES].[CLUES].&[{clues}])
                 """
-            
+
             print(f"MDX generado para CLUES {clues}:", mdx)
-            
+
             try:
                 df = query_olap(cadena_conexion, mdx)
-                print(f"Datos crudos para CLUES {clues}:", df.to_dict())
-                
-                if df.empty:
+                if df is None or not hasattr(df, 'empty') or df.empty:
                     print(f"DataFrame está vacío para CLUES {clues} - no hay resultados")
                     resultados_por_clues.append({
                         "clues": clues,
@@ -514,23 +506,21 @@ def total_pacientes_multiple(
                         "resultados": []
                     })
                     continue
-                
+
                 resultados = []
                 for _, row in df.iterrows():
+                    if row[0] is None:
+                        continue
                     nombre_variable = row[0]
-            
                     if '.[' in nombre_variable:
                         nombre_variable = nombre_variable.split('.[')[-1].rstrip(']')
-                    
                     valor = sanitize_result(row[1]) if len(row) > 1 else None
-                    
-                  
                     if valor is not None and isinstance(valor, (int, float)):
                         resultados.append({
                             "variable": nombre_variable,
                             "total_pacientes": valor
                         })
-                
+
                 print(f"Resultados procesados para CLUES {clues}:", resultados)
                 resultados_por_clues.append({
                     "clues": clues,
@@ -538,7 +528,7 @@ def total_pacientes_multiple(
                     "total_variables": len(resultados),
                     "resultados": resultados
                 })
-                
+
             except Exception as e:
                 print(f"Error en consulta para CLUES {clues}:", str(e))
                 resultados_por_clues.append({
@@ -547,7 +537,7 @@ def total_pacientes_multiple(
                     "mensaje": f"Error al consultar datos: {str(e)}",
                     "resultados": []
                 })
-        
+
         return {
             "catalogo": catalogo,
             "cubo": cubo,
