@@ -5,7 +5,7 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
 <div class="container mt-4">
-    <h3 class="mb-4">Consulta por CLUES y Variables,</h3>
+    <h3 class="mb-4">Consulta por CLUES y Variables</h3>
 
     <div class="mb-3">
         <label for="catalogoSelect" class="form-label">Selecciona un catálogo SIS:</label>
@@ -15,26 +15,27 @@
     </div>
 
     <div class="mb-3">
-        <label for="cluesInput" class="form-label">CLUES (una sola CLUES para cargar variables específicas):</label>
-        <input type="text" id="cluesInput" class="form-control" placeholder="Ej. MCL210000000">
+        <label for="cluesSelect" class="form-label">Selecciona CLUES:</label>
+        <select id="cluesSelect" class="form-select" multiple disabled>
+            <option value="">-- Primero selecciona un catálogo --</option>
+        </select>
     </div>
 
     <div class="mb-3">
-        <button class="btn btn-secondary" onclick="cargarVariables()">🔍 Cargar Variables por CLUES</button>
+        <button class="btn btn-secondary" onclick="cargarClues()" id="btnCargarClues" disabled>🔍 Cargar CLUES disponibles</button>
     </div>
 
     <div class="mb-3">
-        <label for="variablesSelect" class="form-label">Selecciona Variables (opcional):</label>
+        <label for="variablesSelect" class="form-label">Selecciona Variables:</label>
         <select id="variablesSelect" class="form-select" multiple disabled></select>
     </div>
 
-    <!-- ✅ Mensaje de variables cargadas -->
     <div id="mensajeCargadas" class="alert alert-success d-none">
-        ✅ Variables cargadas correctamente. Ya puedes seleccionar las que deseas consultar.
+        ✅ Datos cargados correctamente. Ya puedes seleccionar variables y consultar.
     </div>
 
-    <button class="btn btn-primary mb-2" onclick="consultarVariables()">Consultar</button>
-    <button class="btn btn-success mb-2 ms-2" onclick="exportarExcel()">⬇️ Exportar a Excel</button>
+    <button class="btn btn-primary mb-2" onclick="consultarVariables()" id="btnConsultar" disabled>Consultar</button>
+    <button class="btn btn-success mb-2 ms-2" onclick="exportarExcel()" id="btnExportar" disabled>⬇️ Exportar a Excel</button>
 
     <div id="spinnerCarga" class="text-center my-4 d-none">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -57,14 +58,24 @@
 <script>
 const baseUrl = 'http://127.0.0.1:8070';
 let cuboActivo = null;
+let cluesDisponibles = [];
+let todasLasVariables = new Set(); // Usamos un Set para evitar duplicados
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar selects con select2
+    $('#cluesSelect').select2({
+        placeholder: "Selecciona una o más CLUES",
+        width: '100%',
+        allowClear: true
+    });
+
     $('#variablesSelect').select2({
         placeholder: "Busca variables...",
         width: '100%',
         allowClear: true
     });
 
+    // Cargar catálogos disponibles
     fetch(`${baseUrl}/cubos_sis`)
         .then(res => res.json())
         .then(data => {
@@ -77,61 +88,149 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+    // Cuando cambia el catálogo
     document.getElementById('catalogoSelect').addEventListener('change', () => {
         const catalogo = document.getElementById('catalogoSelect').value;
-        if (!catalogo) return;
+        if (!catalogo) {
+            resetearFormulario();
+            return;
+        }
 
+        // Habilitar botón para cargar CLUES
+        $('#btnCargarClues').prop('disabled', false);
+        
+        // Obtener el cubo activo
         fetch(`${baseUrl}/cubos_en_catalogo/${catalogo}`)
             .then(res => res.json())
             .then(data => {
                 cuboActivo = data.cubos[0];
             });
     });
+
+    // Cuando cambian las CLUES seleccionadas
+    $('#cluesSelect').on('change', function() {
+        const cluesSeleccionadas = $(this).val();
+        if (cluesSeleccionadas && cluesSeleccionadas.length > 0) {
+            cargarVariablesCombinadas();
+        } else {
+            resetearVariables();
+        }
+    });
 });
 
-function cargarVariables() {
-    const catalogo = document.getElementById('catalogoSelect').value;
-    const clues = document.getElementById('cluesInput').value.trim();
+function resetearFormulario() {
+    $('#cluesSelect').val(null).trigger('change').prop('disabled', true);
+    $('#btnCargarClues').prop('disabled', true);
+    resetearVariables();
+}
 
+function resetearVariables() {
+    $('#variablesSelect').val(null).trigger('change').prop('disabled', true);
+    $('#btnConsultar').prop('disabled', true);
+    $('#btnExportar').prop('disabled', true);
     document.getElementById('mensajeCargadas').classList.add('d-none');
+    todasLasVariables = new Set();
+}
 
-    if (!catalogo || !cuboActivo || !clues) {
-        alert("Selecciona un catálogo y escribe una CLUES.");
-        return;
-    }
+function cargarClues() {
+    const catalogo = document.getElementById('catalogoSelect').value;
 
-    if (clues.includes(',')) {
-        alert("Solo puedes cargar variables con una CLUES a la vez.");
+    if (!catalogo || !cuboActivo) {
+        alert("Selecciona un catálogo primero.");
         return;
     }
 
     mostrarSpinner();
+    resetearVariables();
 
-    fetch(`${baseUrl}/variables_pacientes_por_clues?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cuboActivo)}&clues=${encodeURIComponent(clues)}`)
+    // Consultar las CLUES disponibles para este cubo
+    fetch(`${baseUrl}/miembros_jerarquia2?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cuboActivo)}&jerarquia=CLUES`)
         .then(res => res.json())
         .then(data => {
-            const select = $('#variablesSelect');
+            const select = $('#cluesSelect');
             select.empty();
-
-            if (data.variables && data.variables.length > 0) {
-                data.variables.forEach(v => {
-                    select.append(new Option(v.variable, v.variable));
+            
+            if (data.miembros && data.miembros.length > 0) {
+                // Guardar las CLUES disponibles para referencia
+                cluesDisponibles = data.miembros.map(m => m.nombre);
+                
+                // Agregar opciones al select
+                cluesDisponibles.forEach(clues => {
+                    select.append(new Option(clues, clues));
                 });
+                
                 select.prop('disabled', false);
                 select.trigger('change');
-
-               
-                document.getElementById('mensajeCargadas').classList.remove('d-none');
             } else {
-                alert("No se encontraron variables con datos para esta CLUES.");
+                alert("No se encontraron CLUES en este cubo.");
                 select.prop('disabled', true);
             }
         })
         .catch(err => {
-            console.error("Error al cargar variables por CLUES:", err);
-            alert("Ocurrió un error al cargar las variables.");
+            console.error("Error al cargar CLUES:", err);
+            alert("Ocurrió un error al cargar las CLUES.");
         })
         .finally(() => ocultarSpinner());
+}
+
+async function cargarVariablesCombinadas() {
+    const cluesSeleccionadas = $('#cluesSelect').val();
+    
+    if (!cluesSeleccionadas || cluesSeleccionadas.length === 0) {
+        resetearVariables();
+        return;
+    }
+
+    mostrarSpinner();
+    document.getElementById('mensajeCargadas').classList.add('d-none');
+    todasLasVariables = new Set();
+
+    // Array para almacenar todas las promesas de carga de variables
+    const promesasCarga = cluesSeleccionadas.map(clues => {
+        const catalogo = document.getElementById('catalogoSelect').value;
+        return fetch(`${baseUrl}/variables_pacientes_por_clues?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cuboActivo)}&clues=${encodeURIComponent(clues)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.variables && data.variables.length > 0) {
+                    data.variables.forEach(v => {
+                        todasLasVariables.add(v.variable);
+                    });
+                }
+            });
+    });
+
+    try {
+        // Esperar a que todas las consultas terminen
+        await Promise.all(promesasCarga);
+
+        // Actualizar el select de variables
+        const select = $('#variablesSelect');
+        select.empty();
+
+        if (todasLasVariables.size > 0) {
+            // Ordenar las variables alfabéticamente
+            const variablesOrdenadas = Array.from(todasLasVariables).sort();
+            
+            variablesOrdenadas.forEach(variable => {
+                select.append(new Option(variable, variable));
+            });
+            
+            select.prop('disabled', false);
+            select.trigger('change');
+
+            document.getElementById('mensajeCargadas').classList.remove('d-none');
+            $('#btnConsultar').prop('disabled', false);
+            $('#btnExportar').prop('disabled', false);
+        } else {
+            alert("No se encontraron variables con datos para las CLUES seleccionadas.");
+            select.prop('disabled', true);
+        }
+    } catch (err) {
+        console.error("Error al cargar variables por CLUES:", err);
+        alert("Ocurrió un error al cargar las variables.");
+    } finally {
+        ocultarSpinner();
+    }
 }
 
 async function consultarVariables() {
@@ -140,18 +239,17 @@ async function consultarVariables() {
 
     try {
         const catalogo = document.getElementById('catalogoSelect').value;
-        const cluesInput = document.getElementById('cluesInput').value.trim();
-        const cluesList = cluesInput.split(',').map(c => c.trim()).filter(c => c);
+        const cluesSeleccionadas = $('#cluesSelect').val();
         const variables = $('#variablesSelect').val() || [];
 
-        if (!catalogo || !cuboActivo || cluesList.length === 0) {
-            throw new Error("Por favor completa el catálogo y al menos una CLUES");
+        if (!catalogo || !cuboActivo || !cluesSeleccionadas || cluesSeleccionadas.length === 0) {
+            throw new Error("Por favor completa el catálogo y selecciona al menos una CLUES");
         }
 
         const payload = {
             catalogo: catalogo,
             cubo: cuboActivo,
-            clues_list: cluesList,
+            clues_list: cluesSeleccionadas,
             variables: variables
         };
 
@@ -189,11 +287,22 @@ function mostrarResultados(data) {
     resultadosDiv.innerHTML = '';
     window.resultadosExport = [];
 
+    // Calcular total de variables únicas consultadas
+    const variablesUnicas = new Set();
+    data.resultados.forEach(cluesData => {
+        if (cluesData.resultados) {
+            cluesData.resultados.forEach(item => {
+                variablesUnicas.add(item.variable);
+            });
+        }
+    });
+
     resumen.innerHTML = `
         <strong>Consulta realizada:</strong> 
         Catálogo: ${data.catalogo} |
         Cubo: ${data.cubo} |
-        CLUES consultadas: ${data.total_clues_consultadas}
+        CLUES consultadas: ${data.total_clues_consultadas} |
+        Variables consultadas: ${variablesUnicas.size}
     `;
 
     data.resultados.forEach(cluesData => {
