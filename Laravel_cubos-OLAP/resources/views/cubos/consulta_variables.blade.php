@@ -67,7 +67,7 @@ let cluesDisponibles = [];
 let todasLasVariables = new Set(); 
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializar selects con select2
+ 
     $('#cluesSelect').select2({
         placeholder: "Selecciona una o más CLUES",
         width: '100%',
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allowClear: true
     });
 
-    // Cargar catálogos disponibles
+
     fetch(`${baseUrl}/cubos_sis`)
         .then(res => res.json())
         .then(data => {
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-    // Cuando cambia el catálogo
+
     document.getElementById('catalogoSelect').addEventListener('change', () => {
         const catalogo = document.getElementById('catalogoSelect').value;
         if (!catalogo) {
@@ -101,10 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Habilitar botón para cargar CLUES
+
         $('#btnCargarClues').prop('disabled', false);
         
-        // Obtener el cubo activo
+
         fetch(`${baseUrl}/cubos_en_catalogo/${catalogo}`)
             .then(res => res.json())
             .then(data => {
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
 
-    // Cuando cambian las CLUES seleccionadas
+
     $('#cluesSelect').on('change', function() {
         const cluesSeleccionadas = $(this).val();
         if (cluesSeleccionadas && cluesSeleccionadas.length > 0) {
@@ -127,7 +127,7 @@ function resetearFormulario() {
     $('#cluesSelect').val(null).trigger('change').prop('disabled', true);
     $('#btnCargarClues').prop('disabled', true);
     resetearVariables();
-    // Ocultar ambos mensajes al resetear
+
     document.getElementById('mensajeCluesCargadas').classList.add('d-none');
     document.getElementById('mensajeCargadas').classList.add('d-none');
 }
@@ -152,7 +152,7 @@ function cargarClues() {
     resetearVariables();
     document.getElementById('mensajeCluesCargadas').classList.add('d-none');
 
-    // Consultar las CLUES disponibles para este cubo
+
     fetch(`${baseUrl}/miembros_jerarquia2?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cuboActivo)}&jerarquia=CLUES`)
         .then(res => res.json())
         .then(data => {
@@ -160,10 +160,10 @@ function cargarClues() {
             select.empty();
             
             if (data.miembros && data.miembros.length > 0) {
-                // Guardar las CLUES disponibles para referencia
+               
                 cluesDisponibles = data.miembros.map(m => m.nombre);
                 
-                // Agregar opciones al select
+         
                 cluesDisponibles.forEach(clues => {
                     select.append(new Option(clues, clues));
                 });
@@ -171,7 +171,7 @@ function cargarClues() {
                 select.prop('disabled', false);
                 select.trigger('change');
                 
-                // Mostrar mensaje de éxito para CLUES
+          
                 document.getElementById('mensajeCluesCargadas').classList.remove('d-none');
             } else {
                 alert("No se encontraron CLUES en este cubo.");
@@ -197,7 +197,6 @@ async function cargarVariablesCombinadas() {
     document.getElementById('mensajeCargadas').classList.add('d-none');
     todasLasVariables = new Set();
 
-    // Array para almacenar todas las promesas de carga de variables
     const promesasCarga = cluesSeleccionadas.map(clues => {
         const catalogo = document.getElementById('catalogoSelect').value;
         return fetch(`${baseUrl}/variables_pacientes_por_clues?catalogo=${encodeURIComponent(catalogo)}&cubo=${encodeURIComponent(cuboActivo)}&clues=${encodeURIComponent(clues)}`)
@@ -212,15 +211,15 @@ async function cargarVariablesCombinadas() {
     });
 
     try {
-        // Esperar a que todas las consultas terminen
+   
         await Promise.all(promesasCarga);
 
-        // Actualizar el select de variables
+       
         const select = $('#variablesSelect');
         select.empty();
 
         if (todasLasVariables.size > 0) {
-            // Ordenar las variables alfabéticamente
+          
             const variablesOrdenadas = Array.from(todasLasVariables).sort();
             
             variablesOrdenadas.forEach(variable => {
@@ -299,7 +298,7 @@ function mostrarResultados(data) {
     resultadosDiv.innerHTML = '';
     window.resultadosExport = [];
 
-    // Calcular total de variables únicas consultadas
+ 
     const variablesUnicas = new Set();
     data.resultados.forEach(cluesData => {
         if (cluesData.resultados) {
