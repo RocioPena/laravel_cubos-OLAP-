@@ -45,7 +45,7 @@
     </div>
 
     <button class="btn btn-primary mb-2" onclick="consultarVariables()" id="btnConsultar" disabled>Consultar</button>
-    <button class="btn btn-success mb-2 ms-2" onclick="exportarExcel()" id="btnExportar" disabled>⬇️ Exportar a Excel</button>
+    <button class="btn btn-success mb-2 ms-2" onclick="abrirModalEdicion()">⬇️ Exportar a Excel</button>
 
     <div id="spinnerCarga" class="text-center my-4 d-none">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -58,9 +58,54 @@
     </div>
 </div>
 
+<!-- Modal de edición -->
+<div class="modal fade" id="modalEdicion" tabindex="-1" aria-labelledby="modalEdicionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">📝 Personalizar Excel antes de exportar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>🎨 Personalizar colores:</strong><br>
+                    <label class="form-label mt-2">Encabezado:</label>
+                    <div class="d-flex gap-3 align-items-center mb-2">
+                        <label>Fondo:</label><input type="color" id="colorFondoEncabezado" value="#800080" oninput="actualizarVistaPrevia()">
+                        <label>Texto:</label><input type="color" id="colorTextoEncabezado" value="#ffffff" oninput="actualizarVistaPrevia()">
+                    </div>
+                    <label class="form-label mt-2">Contenido:</label>
+                    <div class="d-flex gap-3 align-items-center">
+                        <label>Fondo:</label><input type="color" id="colorFondoContenido" value="#f5f5dc" oninput="actualizarVistaPrevia()">
+                        <label>Texto:</label><input type="color" id="colorTextoContenido" value="#000000" oninput="actualizarVistaPrevia()">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="tablaEdicion">
+                        <thead>
+                            <tr>
+                                <th>CLUES</th>
+                                <th>Variable</th>
+                                <th>Total de Pacientes</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" onclick="exportarDesdeModal()">⬇️ Descargar</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.min.js"></script>
+
 
 @endsection
 
@@ -403,5 +448,105 @@ function mostrarSpinner() {
 function ocultarSpinner() {
     document.getElementById('spinnerCarga').classList.add('d-none');
 }
+function abrirModalEdicion() {
+    const tbody = document.querySelector("#tablaEdicion tbody");
+    tbody.innerHTML = "";
+
+    if (!window.resultadosExport || window.resultadosExport.length === 0) {
+        alert("No hay datos para editar.");
+        return;
+    }
+
+    window.resultadosExport.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td contenteditable="true">${row.CLUES}</td>
+            <td contenteditable="true">${row.Variable}</td>
+            <td contenteditable="true">${row["Total de Pacientes"]}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    actualizarVistaPrevia();
+
+    const modal = new bootstrap.Modal(document.getElementById('modalEdicion'));
+    modal.show();
+}
+
+function exportarDesdeModal() {
+    const filas = document.querySelectorAll("#tablaEdicion tbody tr");
+    const datos = [];
+
+    filas.forEach(fila => {
+        const celdas = fila.querySelectorAll("td");
+        datos.push({
+            CLUES: celdas[0].innerText.trim(),
+            Variable: celdas[1].innerText.trim(),
+            "Total de Pacientes": parseFloat(celdas[2].innerText.trim()) || 0
+        });
+    });
+
+    const hoja = XLSX.utils.json_to_sheet(datos);
+
+    const colorFondoEncabezado = document.getElementById("colorFondoEncabezado").value.replace("#", "").toUpperCase();
+    const colorTextoEncabezado = document.getElementById("colorTextoEncabezado").value.replace("#", "").toUpperCase();
+    const colorFondoContenido = document.getElementById("colorFondoContenido").value.replace("#", "").toUpperCase();
+    const colorTextoContenido = document.getElementById("colorTextoContenido").value.replace("#", "").toUpperCase();
+
+    const estiloEncabezado = {
+        fill: { fgColor: { rgb: colorFondoEncabezado } },
+        font: { color: { rgb: colorTextoEncabezado }, bold: true },
+        alignment: { horizontal: "center" },
+        border: { top: { style: "thin", color: { rgb: "000000" } },
+                  bottom: { style: "thin", color: { rgb: "000000" } },
+                  left: { style: "thin", color: { rgb: "000000" } },
+                  right: { style: "thin", color: { rgb: "000000" } } }
+    };
+
+    const estiloContenido = {
+        fill: { fgColor: { rgb: colorFondoContenido } },
+        font: { color: { rgb: colorTextoContenido } },
+        border: { top: { style: "thin", color: { rgb: "000000" } },
+                  bottom: { style: "thin", color: { rgb: "000000" } },
+                  left: { style: "thin", color: { rgb: "000000" } },
+                  right: { style: "thin", color: { rgb: "000000" } } }
+    };
+
+    const keys = Object.keys(datos[0]);
+    for (let i = 0; i < keys.length; i++) {
+        const col = String.fromCharCode(65 + i);
+        const cell = hoja[`${col}1`];
+        if (cell) cell.s = estiloEncabezado;
+    }
+
+    for (let r = 0; r < datos.length; r++) {
+        for (let c = 0; c < keys.length; c++) {
+            const cell = hoja[`${String.fromCharCode(65 + c)}${r + 2}`];
+            if (cell) cell.s = estiloContenido;
+        }
+    }
+
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Personalizado");
+    XLSX.writeFile(libro, "resultados_personalizados.xlsx");
+}
+
+function actualizarVistaPrevia() {
+    const fondoHeader = document.getElementById("colorFondoEncabezado").value;
+    const textoHeader = document.getElementById("colorTextoEncabezado").value;
+    const fondoContenido = document.getElementById("colorFondoContenido").value;
+    const textoContenido = document.getElementById("colorTextoContenido").value;
+
+    document.querySelectorAll("#tablaEdicion thead th").forEach(th => {
+        th.style.backgroundColor = fondoHeader;
+        th.style.color = textoHeader;
+    });
+
+    document.querySelectorAll("#tablaEdicion tbody td").forEach(td => {
+        td.style.backgroundColor = fondoContenido;
+        td.style.color = textoContenido;
+    });
+}
+
 </script>
 @endsection
