@@ -90,6 +90,10 @@
                         <thead>
                             <tr>
                                 <th>CLUES</th>
+                                <th>Entidad</th>
+                                <th>Jurisdicción</th>
+                                <th>Municipio</th>
+                                <th>Unidad Médica</th>
                                 <th>Variable</th>
                                 <th>Total de Pacientes</th>
                             </tr>
@@ -316,7 +320,7 @@ async function consultarVariables() {
             variables: variables
         };
 
-        const response = await fetch(`${baseUrl}/total_pacientes_multiple`, {
+        const response = await fetch(`${baseUrl}/total_pacientes_multiple_detallado`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -395,8 +399,14 @@ function mostrarResultados(data) {
             const table = document.createElement('table');
             table.className = 'table table-striped table-hover';
             table.innerHTML = `
+
+
                 <thead>
                     <tr>
+                        <th>Entidad</th>
+                        <th>Jurisdicción</th>
+                        <th>Municipio</th>
+                        <th>Unidad Médica</th>
                         <th>Variable</th>
                         <th>Total de Pacientes</th>
                     </tr>
@@ -405,17 +415,26 @@ function mostrarResultados(data) {
                     ${cluesData.resultados.map(item => {
                         window.resultadosExport.push({
                             CLUES: cluesData.clues,
+                            Entidad: cluesData.unidad?.entidad || '',
+                            Jurisdicción: cluesData.unidad?.jurisdiccion || '',
+                            Municipio: cluesData.unidad?.municipio || '',
+                            "Unidad Médica": cluesData.unidad?.unidad_medica || '',
                             Variable: item.variable,
                             "Total de Pacientes": item.total_pacientes
                         });
                         return `
                             <tr>
+                                <td>${cluesData.unidad?.entidad || 'N/A'}</td>
+                                <td>${cluesData.unidad?.jurisdiccion || 'N/A'}</td>
+                                <td>${cluesData.unidad?.municipio || 'N/A'}</td>
+                                <td>${cluesData.unidad?.unidad_medica || 'N/A'}</td>
                                 <td>${item.variable || 'N/A'}</td>
                                 <td>${item.total_pacientes !== null ? item.total_pacientes : 'Sin datos'}</td>
                             </tr>`;
                     }).join('')}
                 </tbody>
             `;
+
             cardBody.appendChild(table);
         }
 
@@ -441,11 +460,16 @@ function abrirModalEdicion() {
         if (cluesData.resultados && cluesData.resultados.length > 0) {
             cluesData.resultados.forEach(item => {
                 const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td contenteditable="true">${cluesData.clues}</td>
-                    <td contenteditable="true">${item.variable}</td>
-                    <td contenteditable="true">${item.total_pacientes !== null ? item.total_pacientes : '0'}</td>
-                `;
+                    tr.innerHTML = `
+                        <td contenteditable="true">${cluesData.clues}</td>
+                        <td contenteditable="true">${cluesData.unidad?.entidad || ''}</td>
+                        <td contenteditable="true">${cluesData.unidad?.jurisdiccion || ''}</td>
+                        <td contenteditable="true">${cluesData.unidad?.municipio || ''}</td>
+                        <td contenteditable="true">${cluesData.unidad?.unidad_medica || ''}</td>
+                        <td contenteditable="true">${item.variable}</td>
+                        <td contenteditable="true">${item.total_pacientes !== null ? item.total_pacientes : '0'}</td>
+                    `;
+
                 tbody.appendChild(tr);
             });
         }

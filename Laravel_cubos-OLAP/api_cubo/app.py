@@ -550,3 +550,124 @@ def total_pacientes_multiple(
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/total_pacientes_multiple_detallado")
+def total_pacientes_multiple_detallado(
+    catalogo: str = Body(...),
+    cubo: str = Body(...),
+    clues_list: List[str] = Body(...),
+    variables: List[str] = Body(default=None)
+):
+    if variables is None:
+        variables = []
+
+    try:
+        cubo_mdx = f'"{cubo}"' if " " in cubo else f"[{cubo}]"
+
+        cadena_conexion = (
+            "Provider=MSOLAP.8;"
+            "Data Source=pwidgis03.salud.gob.mx;"
+            "User ID=SALUD\\DGIS15;"
+            "Password=Temp123!;"
+            f"Initial Catalog={catalogo};"
+        )
+
+        resultados_por_clues = []
+
+        for clues in clues_list:
+            # Validar si la CLUES existe
+            mdx_check = f"""
+            SELECT {{[Measures].DefaultMember}} ON COLUMNS
+            FROM {cubo_mdx}
+            WHERE ([CLUES].[CLUES].&[{clues}])
+            """
+            try:
+                _ = query_olap(cadena_conexion, mdx_check)
+            except Exception:
+                resultados_por_clues.append({
+                    "clues": clues,
+                    "estado": "error",
+                    "mensaje": f"La CLUES '{clues}' no existe.",
+                    "resultados": []
+                })
+                continue
+
+            # Construcción de variables
+            if not variables:
+                variables_mdx = "[Variable].[Variable].MEMBERS"
+            else:
+                variables_mdx = ", ".join(f"[Variable].[Variable].[{v}]" for v in variables)
+
+            # MDX con CROSSJOIN en ROWS
+            mdx = f"""
+            SELECT 
+                {{ [Measures].[Total] }} ON COLUMNS,
+                NON EMPTY 
+                CROSSJOIN(
+                    {{ {variables_mdx} }},
+                    [Entidad].[Entidad].MEMBERS,
+                    [Jurisdicción].[Jurisdicción].MEMBERS,
+                    [Municipio].[Municipio].MEMBERS,
+                    [Unidad Médica].[Nombre de la Unidad Médica].MEMBERS
+                ) ON ROWS
+            FROM {cubo_mdx}
+            WHERE ([CLUES].[CLUES].&[{clues}])
+            """
+
+            df = query_olap(cadena_conexion, mdx)
+
+            if df.empty or df.shape[1] < 2:
+                resultados_por_clues.append({
+                    "clues": clues,
+                    "estado": "sin_datos",
+                    "mensaje": "No se encontraron datos para esta CLUES.",
+                    "resultados": []
+                })
+                continue
+
+            resultados = []
+            entidad = jurisdiccion = municipio = unidad_medica = None
+
+            for _, row in df.iterrows():
+                try:
+                    nombre_variable = row[0].split("].[")[-1].rstrip("]") if row[0] else None
+                    entidad = row[1].split("].[")[-1].rstrip("]") if row[1] else entidad
+                    jurisdiccion = row[2].split("].[")[-1].rstrip("]") if row[2] else jurisdiccion
+                    municipio = row[3].split("].[")[-1].rstrip("]") if row[3] else municipio
+                    unidad_medica = row[4].split("].[")[-1].rstrip("]") if row[4] else unidad_medica
+                    valor = sanitize_result(row[-1])  # ✅ Aquí se corrigió
+
+                    if nombre_variable and valor is not None:
+                        resultados.append({
+                            "variable": nombre_variable,
+                            "total_pacientes": valor
+                        })
+
+                except Exception as e:
+                    print("Error al procesar fila:", row.to_dict(), str(e))
+
+            resultados_por_clues.append({
+                "clues": clues,
+                "estado": "exito",
+                "unidad": {
+                    "entidad": entidad,
+                    "jurisdiccion": jurisdiccion,
+                    "municipio": municipio,
+                    "unidad_medica": unidad_medica
+                },
+                "total_variables": len(resultados),
+                "resultados": resultados
+            })
+
+        return {
+            "catalogo": catalogo,
+            "cubo": cubo,
+            "total_clues_consultadas": len(clues_list),
+            "resultados": resultados_por_clues
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
