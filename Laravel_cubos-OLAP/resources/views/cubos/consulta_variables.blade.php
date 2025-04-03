@@ -492,8 +492,12 @@ function exportarDesdeModal() {
         const celdas = fila.querySelectorAll("td");
         datos.push({
             CLUES: celdas[0].innerText.trim(),
-            Variable: celdas[1].innerText.trim(),
-            "Total de Pacientes": parseFloat(celdas[2].innerText.trim()) || 0
+            Entidad: celdas[1].innerText.trim(),
+            Jurisdicción: celdas[2].innerText.trim(),
+            Municipio: celdas[3].innerText.trim(),
+            "Unidad Médica": celdas[4].innerText.trim(),
+            Variable: celdas[5].innerText.trim(),
+            "Total de Pacientes": parseFloat(celdas[6].innerText.trim()) || 0
         });
     });
 
