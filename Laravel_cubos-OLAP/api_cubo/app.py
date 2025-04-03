@@ -671,3 +671,4 @@ def total_pacientes_multiple_detallado(
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+# //hola
