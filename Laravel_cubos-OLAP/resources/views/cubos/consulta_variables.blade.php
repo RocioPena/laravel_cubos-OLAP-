@@ -106,8 +106,18 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" onclick="exportarDesdeModal()">Exportar Personalizado</button>
-            </div>
+            
+                {{-- FORMULARIO PARA EXPORTACIÓN --}}
+                <form id="formExportacionPersonalizada" method="POST" action="{{ route('exportarExcel') }}">
+                    @csrf
+                    <input type="hidden" name="datos" id="datosParaExcel">
+                    <input type="hidden" name="colorFondoEncabezado" id="inputColorFondoEncabezado">
+                    <input type="hidden" name="colorTextoEncabezado" id="inputColorTextoEncabezado">
+                    <input type="hidden" name="colorFondoContenido" id="inputColorFondoContenido">
+                    <input type="hidden" name="colorTextoContenido" id="inputColorTextoContenido">
+                    <button type="submit" class="btn btn-primary">Exportar Personalizado</button>
+                </form>
+            </div>            
         </div>
     </div>
 </div>
@@ -484,68 +494,17 @@ function abrirModalEdicion() {
 }
 
 function exportarDesdeModal() {
-    const tabla = document.getElementById("tablaEdicion");
-    const filas = tabla.querySelectorAll("tbody tr");
-    const datos = [];
+    const datos = window.datosExportacion || []; // Aquí deberías haber guardado los datos a exportar
+    document.getElementById('datosParaExcel').value = JSON.stringify(datos);
 
-    filas.forEach(fila => {
-        const celdas = fila.querySelectorAll("td");
-        datos.push({
-            CLUES: celdas[0].innerText.trim(),
-            Variable: celdas[1].innerText.trim(),
-            "Total de Pacientes": parseFloat(celdas[2].innerText.trim()) || 0
-        });
-    });
+    // Copiar los valores de los inputs de color
+    document.getElementById('inputColorFondoEncabezado').value = document.getElementById('colorFondoEncabezado').value;
+    document.getElementById('inputColorTextoEncabezado').value = document.getElementById('colorTextoEncabezado').value;
+    document.getElementById('inputColorFondoContenido').value = document.getElementById('colorFondoContenido').value;
+    document.getElementById('inputColorTextoContenido').value = document.getElementById('colorTextoContenido').value;
 
-    const hoja = XLSX.utils.json_to_sheet(datos);
-
-    // Obtener colores elegidos
-    const colorFondoEncabezado = document.getElementById("colorFondoEncabezado").value.replace("#", "").toUpperCase();
-    const colorTextoEncabezado = document.getElementById("colorTextoEncabezado").value.replace("#", "").toUpperCase();
-    const colorFondoContenido = document.getElementById("colorFondoContenido").value.replace("#", "").toUpperCase();
-    const colorTextoContenido = document.getElementById("colorTextoContenido").value.replace("#", "").toUpperCase();
-
-    // Estilos dinámicos
-    const estiloEncabezado = {
-        fill: { fgColor: { rgb: colorFondoEncabezado } },
-        font: { color: { rgb: colorTextoEncabezado }, bold: true },
-        alignment: { horizontal: "center" },
-        border: {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } }
-        }
-    };
-
-    const estiloContenido = {
-        fill: { fgColor: { rgb: colorFondoContenido } },
-        font: { color: { rgb: colorTextoContenido } },
-        border: {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } }
-        }
-    };
-
-    const keys = Object.keys(datos[0]);
-    for (let i = 0; i < keys.length; i++) {
-        const col = String.fromCharCode(65 + i); // A, B, C...
-        const cell = hoja[`${col}1`];
-        if (cell) cell.s = estiloEncabezado;
-    }
-
-    for (let r = 0; r < datos.length; r++) {
-        for (let c = 0; c < keys.length; c++) {
-            const cell = hoja[`${String.fromCharCode(65 + c)}${r + 2}`];
-            if (cell) cell.s = estiloContenido;
-        }
-    }
-
-    const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, "Personalizado");
-    XLSX.writeFile(libro, "resultados_personalizados.xlsx");
+    // Enviar el formulario
+    document.getElementById('formExportacionPersonalizada').submit();
 }
 
 function actualizarVistaPrevia() {
