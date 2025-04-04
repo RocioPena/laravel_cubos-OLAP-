@@ -53,11 +53,30 @@
 
     <div id="resultadosContainer" class="d-none">
         <div class="alert alert-info" id="resumenConsulta"></div>
-        <div id="resultadosPorClues"></div>
+        
+        <!-- Nueva tabla horizontal -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped" id="tablaResultados">
+                <thead class="thead-dark">
+                    <tr>
+                        <th rowspan="2">CLUES</th>
+                        <th rowspan="2">Entidad</th>
+                        <th rowspan="2">Jurisdicción</th>
+                        <th rowspan="2">Municipio</th>
+                        <th rowspan="2">Unidad Médica</th>
+                        <th colspan="0" id="variablesHeader">Variables</th>
+                    </tr>
+                    <tr id="variablesSubHeader"></tr>
+                </thead>
+                <tbody id="tablaResultadosBody">
+                    <!-- Datos se insertarán aquí -->
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- Modal de Edición -->
+<!-- Modal de Edición Actualizado -->
 <div class="modal fade" id="modalEdicion" tabindex="-1" aria-labelledby="modalEdicionLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -86,19 +105,19 @@
                 </div>
                 
                 <div class="table-responsive">
-                    <table class="table" id="tablaEdicion">
+                    <table class="table table-bordered" id="tablaEdicion">
                         <thead>
                             <tr>
-                                <th>CLUES</th>
-                                <th>Entidad</th>
-                                <th>Jurisdicción</th>
-                                <th>Municipio</th>
-                                <th>Unidad Médica</th>
-                                <th>Variable</th>
-                                <th>Total de Pacientes</th>
+                                <th rowspan="2">CLUES</th>
+                                <th rowspan="2">Entidad</th>
+                                <th rowspan="2">Jurisdicción</th>
+                                <th rowspan="2">Municipio</th>
+                                <th rowspan="2">Unidad Médica</th>
+                                <th colspan="0" id="variablesHeaderModal">Variables</th>
                             </tr>
+                            <tr id="variablesSubHeaderModal"></tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tablaEdicionBody">
                             <!-- Los datos se insertarán dinámicamente aquí -->
                         </tbody>
                     </table>
@@ -127,6 +146,8 @@ let cuboActivo = null;
 let cluesDisponibles = [];
 let todasLasVariables = new Set(); 
 let resultadosConsulta = []; // Variable global para almacenar los resultados
+let variablesSeleccionadas = []; // Para mantener el orden de las variables
+let datosTablaHorizontal = {}; // Para almacenar los datos en formato horizontal
 
 document.addEventListener('DOMContentLoaded', () => {
    
@@ -199,6 +220,8 @@ function resetearVariables() {
     $('#btnEditar').prop('disabled', true);
     document.getElementById('mensajeCargadas').classList.add('d-none');
     todasLasVariables = new Set();
+    variablesSeleccionadas = [];
+    datosTablaHorizontal = {};
 }
 
 function cargarClues() {
@@ -254,6 +277,7 @@ async function cargarVariablesCombinadas() {
     mostrarSpinner();
     document.getElementById('mensajeCargadas').classList.add('d-none');
     todasLasVariables = new Set();
+    variablesSeleccionadas = [];
 
     const promesasCarga = cluesSeleccionadas.map(clues => {
         const catalogo = document.getElementById('catalogoSelect').value;
@@ -275,9 +299,9 @@ async function cargarVariablesCombinadas() {
         select.empty();
 
         if (todasLasVariables.size > 0) {
-            const variablesOrdenadas = Array.from(todasLasVariables).sort();
+            variablesSeleccionadas = Array.from(todasLasVariables).sort();
             
-            variablesOrdenadas.forEach(variable => {
+            variablesSeleccionadas.forEach(variable => {
                 select.append(new Option(variable, variable));
             });
             
@@ -351,157 +375,161 @@ async function consultarVariables() {
 function mostrarResultados(data) {
     const container = document.getElementById('resultadosContainer');
     const resumen = document.getElementById('resumenConsulta');
-    const resultadosDiv = document.getElementById('resultadosPorClues');
+    const tablaBody = document.getElementById('tablaResultadosBody');
+    const variablesHeader = document.getElementById('variablesHeader');
+    const variablesSubHeader = document.getElementById('variablesSubHeader');
 
-    resultadosDiv.innerHTML = '';
-    window.resultadosExport = [];
+    // Limpiar tabla
+    tablaBody.innerHTML = '';
+    variablesHeader.innerHTML = 'Variables';
+    variablesSubHeader.innerHTML = '';
+    datosTablaHorizontal = {};
 
-    const variablesUnicas = new Set();
-    data.resultados.forEach(cluesData => {
-        if (cluesData.resultados) {
-            cluesData.resultados.forEach(item => {
-                variablesUnicas.add(item.variable);
-            });
-        }
-    });
-
+    // Actualizar resumen
     resumen.innerHTML = `
         <strong>Consulta realizada:</strong> 
         Catálogo: ${data.catalogo} |
         Cubo: ${data.cubo} |
         CLUES consultadas: ${data.total_clues_consultadas} |
-        Variables consultadas: ${variablesUnicas.size}
+        Variables consultadas: ${variablesSeleccionadas.length}
     `;
 
-    data.resultados.forEach(cluesData => {
-        const card = document.createElement('div');
-        card.className = 'card mb-4';
+    // Procesar datos para la tabla horizontal
+    const variablesUnicas = new Set();
 
-        const cardHeader = document.createElement('div');
-        cardHeader.className = `card-header ${cluesData.estado === 'error' ? 'bg-danger text-white' : 'bg-primary text-white'}`;
-        cardHeader.innerHTML = `
-            <h5 class="mb-0">
-                CLUES: ${cluesData.clues}
-                <span class="badge ${cluesData.estado === 'error' ? 'bg-warning' : 'bg-success'} float-end">
-                    ${cluesData.estado === 'error' ? 'Error' : cluesData.total_variables + ' variables'}
-                </span>
-            </h5>
+    data.resultados.forEach(cluesData => {
+        if (cluesData.estado !== 'error' && cluesData.resultados) {
+            const clave = cluesData.clues;
+            datosTablaHorizontal[clave] = {
+                entidad: cluesData.unidad?.entidad || 'N/A',
+                jurisdiccion: cluesData.unidad?.jurisdiccion || 'N/A',
+                municipio: cluesData.unidad?.municipio || 'N/A',
+                unidad_medica: cluesData.unidad?.unidad_medica || 'N/A',
+                variables: {}
+            };
+
+            cluesData.resultados.forEach(item => {
+                variablesUnicas.add(item.variable);
+                datosTablaHorizontal[clave].variables[item.variable] = item.total_pacientes !== null ? item.total_pacientes : '';
+            });
+        }
+    });
+
+    // Ordenar variables
+    const variablesOrdenadas = Array.from(variablesUnicas).sort();
+
+    // Crear encabezados de variables
+    variablesHeader.colSpan = variablesOrdenadas.length;
+    variablesSubHeader.innerHTML = variablesOrdenadas.map(v => `<th>${v}</th>`).join('');
+
+    // Llenar tabla con datos
+    Object.keys(datosTablaHorizontal).forEach(clues => {
+        const fila = document.createElement('tr');
+        const datos = datosTablaHorizontal[clues];
+        
+        // Columnas fijas
+        fila.innerHTML = `
+            <td>${clues}</td>
+            <td>${datos.entidad}</td>
+            <td>${datos.jurisdiccion}</td>
+            <td>${datos.municipio}</td>
+            <td>${datos.unidad_medica}</td>
         `;
 
-        const cardBody = document.createElement('div');
-        cardBody.className = 'card-body';
+        // Columnas dinámicas de variables
+        variablesOrdenadas.forEach(variable => {
+            const valor = datos.variables[variable] !== undefined ? datos.variables[variable] : '';
+            fila.innerHTML += `<td>${valor}</td>`;
+        });
 
-        if (cluesData.estado === 'error') {
-            cardBody.innerHTML = `<p class="text-danger">${cluesData.mensaje}</p>`;
-        } else if (cluesData.resultados.length === 0) {
-            cardBody.innerHTML = `<p class="text-muted">No se encontraron resultados para esta CLUES</p>`;
-        } else {
-            const table = document.createElement('table');
-            table.className = 'table table-striped table-hover';
-            table.innerHTML = `
-
-
-                <thead>
-                    <tr>
-                        <th>Entidad</th>
-                        <th>Jurisdicción</th>
-                        <th>Municipio</th>
-                        <th>Unidad Médica</th>
-                        <th>Variable</th>
-                        <th>Total de Pacientes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${cluesData.resultados.map(item => {
-                        window.resultadosExport.push({
-                            CLUES: cluesData.clues,
-                            Entidad: cluesData.unidad?.entidad || '',
-                            Jurisdicción: cluesData.unidad?.jurisdiccion || '',
-                            Municipio: cluesData.unidad?.municipio || '',
-                            "Unidad Médica": cluesData.unidad?.unidad_medica || '',
-                            Variable: item.variable,
-                            "Total de Pacientes": item.total_pacientes
-                        });
-                        return `
-                            <tr>
-                                <td>${cluesData.unidad?.entidad || 'N/A'}</td>
-                                <td>${cluesData.unidad?.jurisdiccion || 'N/A'}</td>
-                                <td>${cluesData.unidad?.municipio || 'N/A'}</td>
-                                <td>${cluesData.unidad?.unidad_medica || 'N/A'}</td>
-                                <td>${item.variable || 'N/A'}</td>
-                                <td>${item.total_pacientes !== null ? item.total_pacientes : 'Sin datos'}</td>
-                            </tr>`;
-                    }).join('')}
-                </tbody>
-            `;
-
-            cardBody.appendChild(table);
-        }
-
-        card.appendChild(cardHeader);
-        card.appendChild(cardBody);
-        resultadosDiv.appendChild(card);
+        tablaBody.appendChild(fila);
     });
 
     container.classList.remove('d-none');
 }
 
 function abrirModalEdicion() {
-    const tbody = document.querySelector("#tablaEdicion tbody");
-    tbody.innerHTML = "";
+    const tbody = document.querySelector("#tablaEdicionBody");
+    const variablesHeaderModal = document.getElementById("variablesHeaderModal");
+    const variablesSubHeaderModal = document.getElementById("variablesSubHeaderModal");
 
-    if (!window.resultadosExport || window.resultadosExport.length === 0) {
+    tbody.innerHTML = '';
+    variablesHeaderModal.innerHTML = 'Variables';
+    variablesSubHeaderModal.innerHTML = '';
+
+    if (Object.keys(datosTablaHorizontal).length === 0) {
         alert("No hay datos para editar.");
         return;
     }
 
-    // Usamos los datos de resultadosConsulta en lugar de resultadosExport si es necesario
-    resultadosConsulta.forEach(cluesData => {
-        if (cluesData.resultados && cluesData.resultados.length > 0) {
-            cluesData.resultados.forEach(item => {
-                const tr = document.createElement("tr");
-                    tr.innerHTML = `
-                        <td contenteditable="true">${cluesData.clues}</td>
-                        <td contenteditable="true">${cluesData.unidad?.entidad || ''}</td>
-                        <td contenteditable="true">${cluesData.unidad?.jurisdiccion || ''}</td>
-                        <td contenteditable="true">${cluesData.unidad?.municipio || ''}</td>
-                        <td contenteditable="true">${cluesData.unidad?.unidad_medica || ''}</td>
-                        <td contenteditable="true">${item.variable}</td>
-                        <td contenteditable="true">${item.total_pacientes !== null ? item.total_pacientes : '0'}</td>
-                    `;
-
-                tbody.appendChild(tr);
-            });
-        }
+    // Obtener todas las variables únicas
+    const variablesUnicas = new Set();
+    Object.values(datosTablaHorizontal).forEach(cluesData => {
+        Object.keys(cluesData.variables).forEach(variable => {
+            variablesUnicas.add(variable);
+        });
     });
 
-    // Mostrar modal
+    const variablesOrdenadas = Array.from(variablesUnicas).sort();
+
+    // Configurar encabezados del modal
+    variablesHeaderModal.colSpan = variablesOrdenadas.length;
+    variablesSubHeaderModal.innerHTML = variablesOrdenadas.map(v => `<th>${v}</th>`).join('');
+
+    // Llenar tabla del modal con datos
+    Object.keys(datosTablaHorizontal).forEach(clues => {
+        const datos = datosTablaHorizontal[clues];
+        const fila = document.createElement('tr');
+        
+        // Columnas fijas
+        fila.innerHTML = `
+            <td contenteditable="true">${clues}</td>
+            <td contenteditable="true">${datos.entidad}</td>
+            <td contenteditable="true">${datos.jurisdiccion}</td>
+            <td contenteditable="true">${datos.municipio}</td>
+            <td contenteditable="true">${datos.unidad_medica}</td>
+        `;
+
+        // Columnas dinámicas de variables
+        variablesOrdenadas.forEach(variable => {
+            const valor = datos.variables[variable] !== undefined ? datos.variables[variable] : '';
+            fila.innerHTML += `<td contenteditable="true">${valor}</td>`;
+        });
+
+        tbody.appendChild(fila);
+    });
+
     const modal = new bootstrap.Modal(document.getElementById('modalEdicion'));
     modal.show();
-
-    // Aplicar colores seleccionados
     actualizarVistaPrevia();
 }
 
 function exportarDesdeModal() {
     const tabla = document.getElementById("tablaEdicion");
     const filas = tabla.querySelectorAll("tbody tr");
-    const datos = [];
+    const variables = Array.from(document.querySelectorAll("#variablesSubHeaderModal th")).map(th => th.innerText);
+    const datosExport = [];
 
     filas.forEach(fila => {
         const celdas = fila.querySelectorAll("td");
-        datos.push({
+        const dato = {
             CLUES: celdas[0].innerText.trim(),
             Entidad: celdas[1].innerText.trim(),
             Jurisdicción: celdas[2].innerText.trim(),
             Municipio: celdas[3].innerText.trim(),
-            "Unidad Médica": celdas[4].innerText.trim(),
-            Variable: celdas[5].innerText.trim(),
-            "Total de Pacientes": parseFloat(celdas[6].innerText.trim()) || 0
-        });
+            "Unidad Médica": celdas[4].innerText.trim()
+        };
+
+        // Agregar variables
+        for (let i = 0; i < variables.length; i++) {
+            const variable = variables[i];
+            dato[variable] = parseFloat(celdas[5 + i].innerText.trim()) || 0;
+        }
+
+        datosExport.push(dato);
     });
 
-    const hoja = XLSX.utils.json_to_sheet(datos);
+    const hoja = XLSX.utils.json_to_sheet(datosExport);
 
     // Obtener colores elegidos
     const colorFondoEncabezado = document.getElementById("colorFondoEncabezado").value.replace("#", "").toUpperCase();
@@ -533,14 +561,14 @@ function exportarDesdeModal() {
         }
     };
 
-    const keys = Object.keys(datos[0]);
+    const keys = Object.keys(datosExport[0]);
     for (let i = 0; i < keys.length; i++) {
         const col = String.fromCharCode(65 + i); // A, B, C...
         const cell = hoja[`${col}1`];
         if (cell) cell.s = estiloEncabezado;
     }
 
-    for (let r = 0; r < datos.length; r++) {
+    for (let r = 0; r < datosExport.length; r++) {
         for (let c = 0; c < keys.length; c++) {
             const cell = hoja[`${String.fromCharCode(65 + c)}${r + 2}`];
             if (cell) cell.s = estiloContenido;
@@ -574,12 +602,44 @@ function actualizarVistaPrevia() {
 }
 
 function exportarExcel() {
-    if (!window.resultadosExport || window.resultadosExport.length === 0) {
+    if (Object.keys(datosTablaHorizontal).length === 0) {
         alert("No hay datos para exportar.");
         return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(window.resultadosExport);
+    // Convertir a formato para exportación
+    const datosExport = [];
+    const variablesUnicas = new Set();
+
+    // Obtener todas las variables únicas
+    Object.values(datosTablaHorizontal).forEach(cluesData => {
+        Object.keys(cluesData.variables).forEach(variable => {
+            variablesUnicas.add(variable);
+        });
+    });
+
+    const variablesOrdenadas = Array.from(variablesUnicas).sort();
+
+    // Preparar datos para exportación
+    Object.keys(datosTablaHorizontal).forEach(clues => {
+        const datos = datosTablaHorizontal[clues];
+        const fila = {
+            CLUES: clues,
+            Entidad: datos.entidad,
+            Jurisdicción: datos.jurisdiccion,
+            Municipio: datos.municipio,
+            "Unidad Médica": datos.unidad_medica
+        };
+
+        // Agregar variables
+        variablesOrdenadas.forEach(variable => {
+            fila[variable] = datos.variables[variable] !== undefined ? datos.variables[variable] : 0;
+        });
+
+        datosExport.push(fila);
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(datosExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Resultados");
     XLSX.writeFile(workbook, "resultados_clues.xlsx");
