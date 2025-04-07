@@ -145,9 +145,9 @@ const baseUrl = 'http://127.0.0.1:8070';
 let cuboActivo = null;
 let cluesDisponibles = [];
 let todasLasVariables = new Set(); 
-let resultadosConsulta = []; // Variable global para almacenar los resultados
-let variablesSeleccionadas = []; // Para mantener el orden de las variables
-let datosTablaHorizontal = {}; // Para almacenar los datos en formato horizontal
+let resultadosConsulta = []; 
+let variablesSeleccionadas = []; 
+let datosTablaHorizontal = {}; 
 
 document.addEventListener('DOMContentLoaded', () => {
    
@@ -359,7 +359,7 @@ async function consultarVariables() {
             throw new Error(data.error || `Error HTTP ${response.status}`);
         }
 
-        // Guardamos los resultados en la variable global
+     
         resultadosConsulta = data.resultados;
         mostrarResultados(data);
 
@@ -379,13 +379,13 @@ function mostrarResultados(data) {
     const variablesHeader = document.getElementById('variablesHeader');
     const variablesSubHeader = document.getElementById('variablesSubHeader');
 
-    // Limpiar tabla
+    
     tablaBody.innerHTML = '';
     variablesHeader.innerHTML = 'Variables';
     variablesSubHeader.innerHTML = '';
     datosTablaHorizontal = {};
 
-    // Actualizar resumen
+    
     resumen.innerHTML = `
         <strong>Consulta realizada:</strong> 
         Catálogo: ${data.catalogo} |
@@ -394,10 +394,10 @@ function mostrarResultados(data) {
         Variables consultadas: ${variablesSeleccionadas.length}
     `;
 
-    // Procesar datos para la tabla horizontal
+   
     const variablesUnicas = new Set();
 
-    // Primero obtener todas las variables únicas de todas las CLUES
+    
     data.resultados.forEach(cluesData => {
         if (cluesData.estado !== 'error' && cluesData.resultados) {
             cluesData.resultados.forEach(item => {
@@ -406,14 +406,14 @@ function mostrarResultados(data) {
         }
     });
 
-    // Ordenar variables
+    
     const variablesOrdenadas = Array.from(variablesUnicas).sort();
 
-    // Procesar cada CLUES
+    
     data.resultados.forEach(cluesData => {
         const clave = cluesData.clues;
         
-        // Inicializar datos para esta CLUES
+       
         datosTablaHorizontal[clave] = {
             entidad: cluesData.unidad?.entidad || '',
             jurisdiccion: cluesData.unidad?.jurisdiccion || '',
@@ -422,24 +422,24 @@ function mostrarResultados(data) {
             variables: {}
         };
 
-        // Llenar valores para cada variable
+       
         variablesOrdenadas.forEach(variable => {
-            // Buscar si esta variable existe en los resultados de esta CLUES
+            
             const resultadoVariable = cluesData.resultados?.find(item => item.variable === variable);
             datosTablaHorizontal[clave].variables[variable] = resultadoVariable?.total_pacientes ?? '';
         });
     });
 
-    // Crear encabezados de variables
+
     variablesHeader.colSpan = variablesOrdenadas.length;
     variablesSubHeader.innerHTML = variablesOrdenadas.map(v => `<th>${v}</th>`).join('');
 
-    // Llenar tabla con datos
+
     Object.keys(datosTablaHorizontal).forEach(clues => {
         const fila = document.createElement('tr');
         const datos = datosTablaHorizontal[clues];
         
-        // Columnas fijas
+
         fila.innerHTML = `
             <td>${clues}</td>
             <td>${datos.entidad}</td>
@@ -448,7 +448,7 @@ function mostrarResultados(data) {
             <td>${datos.unidad_medica}</td>
         `;
 
-        // Columnas dinámicas de variables
+
         variablesOrdenadas.forEach(variable => {
             const valor = datos.variables[variable] !== undefined ? datos.variables[variable] : '';
             fila.innerHTML += `<td>${valor}</td>`;
@@ -474,7 +474,7 @@ function abrirModalEdicion() {
         return;
     }
 
-    // Obtener todas las variables únicas
+
     const variablesUnicas = new Set();
     Object.values(datosTablaHorizontal).forEach(cluesData => {
         Object.keys(cluesData.variables).forEach(variable => {
@@ -484,16 +484,16 @@ function abrirModalEdicion() {
 
     const variablesOrdenadas = Array.from(variablesUnicas).sort();
 
-    // Configurar encabezados del modal
+
     variablesHeaderModal.colSpan = variablesOrdenadas.length;
     variablesSubHeaderModal.innerHTML = variablesOrdenadas.map(v => `<th>${v}</th>`).join('');
 
-    // Llenar tabla del modal con datos
+  
     Object.keys(datosTablaHorizontal).forEach(clues => {
         const datos = datosTablaHorizontal[clues];
         const fila = document.createElement('tr');
         
-        // Columnas fijas
+    
         fila.innerHTML = `
             <td contenteditable="true">${clues}</td>
             <td contenteditable="true">${datos.entidad}</td>
@@ -502,7 +502,7 @@ function abrirModalEdicion() {
             <td contenteditable="true">${datos.unidad_medica}</td>
         `;
 
-        // Columnas dinámicas de variables
+      
         variablesOrdenadas.forEach(variable => {
             const valor = datos.variables[variable] !== undefined ? datos.variables[variable] : '';
             fila.innerHTML += `<td contenteditable="true">${valor}</td>`;
@@ -532,7 +532,7 @@ function exportarDesdeModal() {
             "Unidad Médica": celdas[4].innerText.trim()
         };
 
-        // Agregar variables
+        
         for (let i = 0; i < variables.length; i++) {
             const variable = variables[i];
             dato[variable] = parseFloat(celdas[5 + i].innerText.trim()) || 0;
@@ -543,13 +543,13 @@ function exportarDesdeModal() {
 
     const hoja = XLSX.utils.json_to_sheet(datosExport);
 
-    // Obtener colores elegidos
+    
     const colorFondoEncabezado = document.getElementById("colorFondoEncabezado").value.replace("#", "").toUpperCase();
     const colorTextoEncabezado = document.getElementById("colorTextoEncabezado").value.replace("#", "").toUpperCase();
     const colorFondoContenido = document.getElementById("colorFondoContenido").value.replace("#", "").toUpperCase();
     const colorTextoContenido = document.getElementById("colorTextoContenido").value.replace("#", "").toUpperCase();
 
-    // Estilos dinámicos
+    
     const estiloEncabezado = {
         fill: { fgColor: { rgb: colorFondoEncabezado } },
         font: { color: { rgb: colorTextoEncabezado }, bold: true },
@@ -575,7 +575,7 @@ function exportarDesdeModal() {
 
     const keys = Object.keys(datosExport[0]);
     for (let i = 0; i < keys.length; i++) {
-        const col = String.fromCharCode(65 + i); // A, B, C...
+        const col = String.fromCharCode(65 + i); 
         const cell = hoja[`${col}1`];
         if (cell) cell.s = estiloEncabezado;
     }
@@ -598,14 +598,14 @@ function actualizarVistaPrevia() {
     const fondoContenido = document.getElementById("colorFondoContenido").value;
     const textoContenido = document.getElementById("colorTextoContenido").value;
 
-    // Encabezados
+   
     const ths = document.querySelectorAll("#tablaEdicion thead th");
     ths.forEach(th => {
         th.style.backgroundColor = fondoHeader;
         th.style.color = textoHeader;
     });
 
-    // Contenido
+    
     const tds = document.querySelectorAll("#tablaEdicion tbody td");
     tds.forEach(td => {
         td.style.backgroundColor = fondoContenido;
@@ -619,11 +619,11 @@ function exportarExcel() {
         return;
     }
 
-    // Convertir a formato para exportación
+
     const datosExport = [];
     const variablesUnicas = new Set();
 
-    // Obtener todas las variables únicas
+   
     Object.values(datosTablaHorizontal).forEach(cluesData => {
         Object.keys(cluesData.variables).forEach(variable => {
             variablesUnicas.add(variable);
@@ -632,7 +632,7 @@ function exportarExcel() {
 
     const variablesOrdenadas = Array.from(variablesUnicas).sort();
 
-    // Preparar datos para exportación
+
     Object.keys(datosTablaHorizontal).forEach(clues => {
         const datos = datosTablaHorizontal[clues];
         const fila = {
@@ -643,7 +643,7 @@ function exportarExcel() {
             "Unidad Médica": datos.unidad_medica
         };
 
-        // Agregar variables
+       
         variablesOrdenadas.forEach(variable => {
             fila[variable] = datos.variables[variable] !== undefined ? datos.variables[variable] : 0;
         });

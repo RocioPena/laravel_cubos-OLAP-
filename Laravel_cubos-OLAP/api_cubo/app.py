@@ -577,7 +577,7 @@ def total_pacientes_multiple_detallado(
 
         for clues in clues_list:
             try:
-                # 1. Obtenemos información geográfica
+              
                 geo_data = {
                     "entidad": None,
                     "jurisdiccion": None,
@@ -585,7 +585,7 @@ def total_pacientes_multiple_detallado(
                     "unidad_medica": None
                 }
 
-                # Primero intentamos con una consulta que incluya la unidad médica
+               
                 try:
                     mdx_geo = f"""
                     SELECT
@@ -615,9 +615,9 @@ def total_pacientes_multiple_detallado(
                                     geo_data["unidad_medica"] = cell_value.split("].[")[-1].replace("]", "").strip()
                 except Exception as geo_error:
                     print(f"Error en consulta geográfica combinada: {str(geo_error)}")
-                    # Si falla, intentamos consultas separadas
+                   
 
-                    # Consulta específica para unidad médica con diferentes variaciones de nombre
+                    
                     um_names = [
                         "[Unidad Médica].[Nombre de la Unidad Médica]",
                         "[Unidad Médica].[Unidad Médica]",
@@ -643,7 +643,7 @@ def total_pacientes_multiple_detallado(
                         except Exception:
                             continue
 
-                    # Obtenemos el resto de la información geográfica
+                  
                     for dim in ["Entidad", "Jurisdicción", "Municipio"]:
                         try:
                             mdx_dim = f"""
@@ -662,7 +662,7 @@ def total_pacientes_multiple_detallado(
                         except Exception:
                             continue
 
-                # 2. Consultamos las variables si se proporcionaron
+             
                 resultados = []
                 if variables:
                     for variable in variables:
@@ -692,7 +692,7 @@ def total_pacientes_multiple_detallado(
                             print(f"Error al consultar variable {variable}: {str(var_error)}")
                             continue
 
-                # 3. Construimos la respuesta para esta CLUES
+              
                 response_item = {
                     "clues": clues,
                     "estado": "exito" if resultados or not variables else "sin_datos_variables",
