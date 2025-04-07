@@ -397,26 +397,38 @@ function mostrarResultados(data) {
     // Procesar datos para la tabla horizontal
     const variablesUnicas = new Set();
 
+    // Primero obtener todas las variables únicas de todas las CLUES
     data.resultados.forEach(cluesData => {
         if (cluesData.estado !== 'error' && cluesData.resultados) {
-            const clave = cluesData.clues;
-            datosTablaHorizontal[clave] = {
-                entidad: cluesData.unidad?.entidad || 'N/A',
-                jurisdiccion: cluesData.unidad?.jurisdiccion || 'N/A',
-                municipio: cluesData.unidad?.municipio || 'N/A',
-                unidad_medica: cluesData.unidad?.unidad_medica || 'N/A',
-                variables: {}
-            };
-
             cluesData.resultados.forEach(item => {
                 variablesUnicas.add(item.variable);
-                datosTablaHorizontal[clave].variables[item.variable] = item.total_pacientes !== null ? item.total_pacientes : '';
             });
         }
     });
 
     // Ordenar variables
     const variablesOrdenadas = Array.from(variablesUnicas).sort();
+
+    // Procesar cada CLUES
+    data.resultados.forEach(cluesData => {
+        const clave = cluesData.clues;
+        
+        // Inicializar datos para esta CLUES
+        datosTablaHorizontal[clave] = {
+            entidad: cluesData.unidad?.entidad || '',
+            jurisdiccion: cluesData.unidad?.jurisdiccion || '',
+            municipio: cluesData.unidad?.municipio || '',
+            unidad_medica: cluesData.unidad?.unidad_medica || '',
+            variables: {}
+        };
+
+        // Llenar valores para cada variable
+        variablesOrdenadas.forEach(variable => {
+            // Buscar si esta variable existe en los resultados de esta CLUES
+            const resultadoVariable = cluesData.resultados?.find(item => item.variable === variable);
+            datosTablaHorizontal[clave].variables[variable] = resultadoVariable?.total_pacientes ?? '';
+        });
+    });
 
     // Crear encabezados de variables
     variablesHeader.colSpan = variablesOrdenadas.length;

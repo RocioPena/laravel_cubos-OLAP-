@@ -576,89 +576,148 @@ def total_pacientes_multiple_detallado(
         resultados_por_clues = []
 
         for clues in clues_list:
-            # Validar si la CLUES existe
-            mdx_check = f"""
-            SELECT {{[Measures].DefaultMember}} ON COLUMNS
-            FROM {cubo_mdx}
-            WHERE ([CLUES].[CLUES].&[{clues}])
-            """
             try:
-                _ = query_olap(cadena_conexion, mdx_check)
-            except Exception:
+                # 1. Obtenemos información geográfica
+                geo_data = {
+                    "entidad": None,
+                    "jurisdiccion": None,
+                    "municipio": None,
+                    "unidad_medica": None
+                }
+
+                # Primero intentamos con una consulta que incluya la unidad médica
+                try:
+                    mdx_geo = f"""
+                    SELECT
+                    NON EMPTY {{
+                        [Entidad].[Entidad].CurrentMember,
+                        [Jurisdicción].[Jurisdicción].CurrentMember,
+                        [Municipio].[Municipio].CurrentMember,
+                        [Unidad Médica].[Nombre de la Unidad Médica].CurrentMember
+                    }} ON ROWS,
+                    {{ [Measures].DefaultMember }} ON COLUMNS
+                    FROM {cubo_mdx}
+                    WHERE ([CLUES].[CLUES].&[{clues}])
+                    """
+                    
+                    df_geo = query_olap(cadena_conexion, mdx_geo)
+                    if not df_geo.empty:
+                        for i, row in df_geo.iterrows():
+                            cell_value = str(row[0]) if pd.notna(row[0]) else None
+                            if cell_value:
+                                if "[Entidad].[Entidad]" in cell_value:
+                                    geo_data["entidad"] = cell_value.split("].[")[-1].replace("]", "").strip()
+                                elif "[Jurisdicción].[Jurisdicción]" in cell_value:
+                                    geo_data["jurisdiccion"] = cell_value.split("].[")[-1].replace("]", "").strip()
+                                elif "[Municipio].[Municipio]" in cell_value:
+                                    geo_data["municipio"] = cell_value.split("].[")[-1].replace("]", "").strip()
+                                elif "[Unidad Médica].[Nombre de la Unidad Médica]" in cell_value:
+                                    geo_data["unidad_medica"] = cell_value.split("].[")[-1].replace("]", "").strip()
+                except Exception as geo_error:
+                    print(f"Error en consulta geográfica combinada: {str(geo_error)}")
+                    # Si falla, intentamos consultas separadas
+
+                    # Consulta específica para unidad médica con diferentes variaciones de nombre
+                    um_names = [
+                        "[Unidad Médica].[Nombre de la Unidad Médica]",
+                        "[Unidad Médica].[Unidad Médica]",
+                        "[Unidad Médica].[Nombre Unidad]",
+                        "[Unidad Médica].[Nombre]"
+                    ]
+                    
+                    for um_name in um_names:
+                        try:
+                            mdx_um = f"""
+                            SELECT
+                            NON EMPTY {{ {um_name}.Members }} ON ROWS,
+                            {{ [Measures].DefaultMember }} ON COLUMNS
+                            FROM {cubo_mdx}
+                            WHERE ([CLUES].[CLUES].&[{clues}])
+                            """
+                            df_um = query_olap(cadena_conexion, mdx_um)
+                            if not df_um.empty:
+                                cell_value = str(df_um.iloc[0, 0]) if pd.notna(df_um.iloc[0, 0]) else None
+                                if cell_value:
+                                    geo_data["unidad_medica"] = cell_value.split("].[")[-1].replace("]", "").strip()
+                                    break
+                        except Exception:
+                            continue
+
+                    # Obtenemos el resto de la información geográfica
+                    for dim in ["Entidad", "Jurisdicción", "Municipio"]:
+                        try:
+                            mdx_dim = f"""
+                            SELECT
+                            NON EMPTY {{ [{dim}].[{dim}].Members }} ON ROWS,
+                            {{ [Measures].DefaultMember }} ON COLUMNS
+                            FROM {cubo_mdx}
+                            WHERE ([CLUES].[CLUES].&[{clues}])
+                            """
+                            df_dim = query_olap(cadena_conexion, mdx_dim)
+                            if not df_dim.empty:
+                                cell_value = str(df_dim.iloc[0, 0]) if pd.notna(df_dim.iloc[0, 0]) else None
+                                if cell_value:
+                                    key = dim.lower().replace("ó", "o")
+                                    geo_data[key] = cell_value.split("].[")[-1].replace("]", "").strip()
+                        except Exception:
+                            continue
+
+                # 2. Consultamos las variables si se proporcionaron
+                resultados = []
+                if variables:
+                    for variable in variables:
+                        try:
+                            mdx_var = f"""
+                            SELECT 
+                                {{ [Measures].[Total] }} ON COLUMNS,
+                                NON EMPTY {{ [Variable].[Variable].[{variable}] }} ON ROWS
+                            FROM {cubo_mdx}
+                            WHERE ([CLUES].[CLUES].&[{clues}])
+                            """
+                            df_var = query_olap(cadena_conexion, mdx_var)
+                            
+                            if not df_var.empty and len(df_var.columns) >= 2:
+                                valor = df_var.iloc[0, 1]
+                                if pd.isna(valor):
+                                    valor = None
+                                elif hasattr(valor, 'item'):
+                                    valor = valor.item()
+                                
+                                if valor is not None:
+                                    resultados.append({
+                                        "variable": variable,
+                                        "total_pacientes": int(valor) if valor is not None else None
+                                    })
+                        except Exception as var_error:
+                            print(f"Error al consultar variable {variable}: {str(var_error)}")
+                            continue
+
+                # 3. Construimos la respuesta para esta CLUES
+                response_item = {
+                    "clues": clues,
+                    "estado": "exito" if resultados or not variables else "sin_datos_variables",
+                    "unidad": geo_data,
+                    "total_variables": len(resultados),
+                    "resultados": resultados
+                }
+
+                resultados_por_clues.append(response_item)
+
+            except Exception as e:
+                print(f"Error procesando CLUES {clues}: {str(e)}")
                 resultados_por_clues.append({
                     "clues": clues,
                     "estado": "error",
-                    "mensaje": f"La CLUES '{clues}' no existe.",
+                    "mensaje": str(e),
+                    "unidad": {
+                        "entidad": None,
+                        "jurisdiccion": None,
+                        "municipio": None,
+                        "unidad_medica": None
+                    },
+                    "total_variables": 0,
                     "resultados": []
                 })
-                continue
-
-            # Construcción de variables
-            if not variables:
-                variables_mdx = "[Variable].[Variable].MEMBERS"
-            else:
-                variables_mdx = ", ".join(f"[Variable].[Variable].[{v}]" for v in variables)
-
-            # MDX con CROSSJOIN en ROWS
-            mdx = f"""
-            SELECT 
-                {{ [Measures].[Total] }} ON COLUMNS,
-                NON EMPTY 
-                CROSSJOIN(
-                    {{ {variables_mdx} }},
-                    [Entidad].[Entidad].MEMBERS,
-                    [Jurisdicción].[Jurisdicción].MEMBERS,
-                    [Municipio].[Municipio].MEMBERS,
-                    [Unidad Médica].[Nombre de la Unidad Médica].MEMBERS
-                ) ON ROWS
-            FROM {cubo_mdx}
-            WHERE ([CLUES].[CLUES].&[{clues}])
-            """
-
-            df = query_olap(cadena_conexion, mdx)
-
-            if df.empty or df.shape[1] < 2:
-                resultados_por_clues.append({
-                    "clues": clues,
-                    "estado": "sin_datos",
-                    "mensaje": "No se encontraron datos para esta CLUES.",
-                    "resultados": []
-                })
-                continue
-
-            resultados = []
-            entidad = jurisdiccion = municipio = unidad_medica = None
-
-            for _, row in df.iterrows():
-                try:
-                    nombre_variable = row[0].split("].[")[-1].rstrip("]") if row[0] else None
-                    entidad = row[1].split("].[")[-1].rstrip("]") if row[1] else entidad
-                    jurisdiccion = row[2].split("].[")[-1].rstrip("]") if row[2] else jurisdiccion
-                    municipio = row[3].split("].[")[-1].rstrip("]") if row[3] else municipio
-                    unidad_medica = row[4].split("].[")[-1].rstrip("]") if row[4] else unidad_medica
-                    valor = sanitize_result(row[-1])  # ✅ Aquí se corrigió
-
-                    if nombre_variable and valor is not None:
-                        resultados.append({
-                            "variable": nombre_variable,
-                            "total_pacientes": valor
-                        })
-
-                except Exception as e:
-                    print("Error al procesar fila:", row.to_dict(), str(e))
-
-            resultados_por_clues.append({
-                "clues": clues,
-                "estado": "exito",
-                "unidad": {
-                    "entidad": entidad,
-                    "jurisdiccion": jurisdiccion,
-                    "municipio": municipio,
-                    "unidad_medica": unidad_medica
-                },
-                "total_variables": len(resultados),
-                "resultados": resultados
-            })
 
         return {
             "catalogo": catalogo,
@@ -670,5 +729,7 @@ def total_pacientes_multiple_detallado(
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": str(e)})
-# //hola
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error interno del servidor: {str(e)}"}
+        )
